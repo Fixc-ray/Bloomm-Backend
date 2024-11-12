@@ -53,13 +53,17 @@ def create_product():
 
     if not (product_name and price and category_id and company_name):
         return jsonify({"error": "Missing required fields"}), 400
-    
+
     company = Company.query.filter_by(name=company_name).first()
     if not company:
         company = Company(name=company_name)
         db.session.add(company)
-        db.session.commit()
-        
+    
+    category = Category.query.get(category_id)
+    if not category:
+        return jsonify({"error": "Invalid category ID"}), 400
+    
+    try:
         new_product = Product(
             product_name=product_name,
             product_model=product_model,
@@ -71,6 +75,7 @@ def create_product():
         
         db.session.add(new_product)
         db.session.commit()
+
         return jsonify({
             "message": "Product created successfully",
             "product": {
@@ -79,12 +84,16 @@ def create_product():
                 "price": new_product.price,
                 "category_id": new_product.category_id,
                 "photo_url": new_product.photo_url,
-                "company_name": company.name  
+                "company_name": company.name
             }
         }), 201
+    
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": "Database error: " + str(e)}), 500
 
 
-@app.route('/customers',methods=['POST'])
+@app.route('/customers', methods=['POST'])
 def create_customer():
     data = request.get_json()
     new_customer = Customer(
@@ -95,9 +104,13 @@ def create_customer():
         address=data.get('address'),
         phone_number=data.get('phone_number')
     )
-    db.session.add(new_customer)
-    db.session.commit()
-    return jsonify({"message": "Customer created successfully"}), 201
+    try:
+        db.session.add(new_customer)
+        db.session.commit()
+        return jsonify({"message": "Customer created successfully"}), 201
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": "Database error: " + str(e)}), 500
 
 
 @app.route('/orders', methods=['POST'])
@@ -108,9 +121,13 @@ def create_order():
         order_date=data.get('order_date'),
         total=data.get('total')
     )
-    db.session.add(new_order)
-    db.session.commit()
-    return jsonify({"message":"Order created successfully"}), 201
+    try:
+        db.session.add(new_order)
+        db.session.commit()
+        return jsonify({"message": "Order created successfully"}), 201
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": "Database error: " + str(e)}), 500
 
 @app.route('/blogs', methods=['POST'])
 def create_blog():
@@ -127,5 +144,5 @@ def create_blog():
 
 if __name__ == '__main__':
     with app.app_context():
-        db.create_all()
-        app.run(port=8080, debug=True)  # run the app in debug mode
+        db.create_all() 
+        app.run(port=8080, debug=True)
