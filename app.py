@@ -135,7 +135,6 @@ def create_blog():
     new_blog = Blog(
         title=data.get('title'),
         content=data.get('content'),
-        author=data.get('author'),
         date_posted=data.get('date_posted')
     )
     db.session.add(new_blog)
