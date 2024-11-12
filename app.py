@@ -1,87 +1,69 @@
-from flask import Flask, request, jsonify
-from models import db, Products, Company, Category, Customer, Order
-
+from flask import Flask, jsonify, request
+from flask_migrate import Migrate
+from flask_sqlalchemy import SQLAlchemy
+from models import db, Product, Customer
+from flask_cors import CORS
+from flask_jwt_extended import (
+    JWTManager, create_access_token, jwt_required, get_jwt_identity
+)
+from werkzeug.security import generate_password_hash, check_password_hash
 
 app = Flask(__name__)
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///beauty.db'
+CORS(app)
+
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///../instance/products.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['JWT_SECRET_KEY'] = '8369a00156590593b430006a34c9944cd2f07ecbdd1caa53d259853b03fffc2dd092aa1be3c7d782efbd88949d036e1af71dbd16aba51dd308df632fb82d0632fa6a35163077ec8e3f7db1321d9dad6de5cf29a73c490a74da6f1fd14579100dc8f1e05f5003d0339739e8e2780bdeb8391d5581545da4f96cac6903c188e248309f8b67ea0ead3dc076ac02aea0ca727bae0f453f60e00f1cbe1c4e13be7d959ab041a8fb4bc5ff5e0756e70dc25a2c5dbb0f03a7d1914424a6136b51e4956ed5b4c600e8c782ae7317a9ae04d42188c4372c9816c08ec3b7f547c20cf3217188ea79a830caaa9dae4acfb628b422cd6c3522feb1d9365a8529de768cc18082'
+
 db.init_app(app)
+migrate = Migrate(app, db)
+jwt = JWTManager(app)
 
 
-@app.route('/products', methods=['POST'])
-def create_product():
+# User Registration
+@app.route('/register', methods=['POST'])
+def register():
     data = request.get_json()
-    
-    product_name = data.get('product_name')
-    product_model = data.get('product_model')
-    price = data.get('price')
-    category_id = data.get('category_id')
-    photo_url = data.get('photo_url')
-    company_name = data.get('company_name')
+    username = data.get('username')
+    password = data.get('password')
+    email = data.get('email')
 
-    if not (product_name and price and category_id and company_name):
-        return jsonify({"error": "Missing required fields"}), 400
-    
-    company = Company.query.filter_by(name=company_name).first()
-    if not company:
-        company = Company(name=company_name)
-        db.session.add(company)
-        db.session.commit()
-        
-        new_product = Product(
-            product_name=product_name,
-            product_model=product_model,
-            price=price,
-            category_id=category_id,
-            photo_url=photo_url,
-            company_id=company.id
-        )
-        
-        db.session.add(new_product)
-        db.session.commit()
-        return jsonify({
-            "message": "Product created successfully",
-            "product": {
-                "product_name": new_product.product_name,
-                "product_model": new_product.product_model,
-                "price": new_product.price,
-                "category_id": new_product.category_id,
-                "photo_url": new_product.photo_url,
-                "company_name": company.name  # Correct reference to company name
-            }
-        }), 201
+    if Customer.query.filter_by(username=username).first():
+        return jsonify({'message': 'Username already taken'}), 400
 
+    if Customer.query.filter_by(email=email).first():
+        return jsonify({'message': 'Email already exists'}), 400
 
-@app.route('/customers',methods=['POST'])
-def create_customer():
-    data = request.get_json()
-    new_customer = Customer(
-        first_name=data.get('first_name'),
-        last_name=data.get('last_name'),
-        email=data.get('email'),
-        password=data.get('password'),
-        address=data.get('address'),
-        phone_number=data.get('phone_number')
-    )
-    db.session.add(new_customer)
+    hashed_password = generate_password_hash(password)
+    new_user = Customer(username=username, password=hashed_password, email=email)
+
+    db.session.add(new_user)
     db.session.commit()
-    return jsonify({"message": "Customer created successfully"}), 201
+
+    return jsonify({'message': 'User registered successfully'}), 201
 
 
-@app.route('/orders', methods=['POST'])
-def create_order():
+# User Login
+@app.route('/login', methods=['POST'])
+def login():
     data = request.get_json()
-    new_order = Order(
-        customer_id=data.get('customer_id'),
-        order_date=data.get('order_date'),
-        total=data.get('total')
-    )
-    db.session.add(new_order)
-    db.session.commit()
-    return jsonify({"message":"Order created successfully"}), 201
+    username = data.get('username')
+    password = data.get('password')
+
+    user = Customer.query.filter_by(username=username).first()
+
+    if not Customer or not check_password_hash(Customer.password, password):
+        return jsonify({'message': 'Invalid credentials'}), 401
+
+    access_token = create_access_token(identity=Customer.user_id)
+    return jsonify({
+        'access_token': access_token,
+        'user': {
+            'username': Customer.username,
+            'email': Customer.email
+        }
+    }), 200
 
 
-if __name__ == '__main__':
-    with app.app_context():
-        db.create_all()
-        app.run(port=8080, debug=True)  # run the app in debug mode
+if __name__ == "__main__":
+    app.run(port= 5500, debug=True)

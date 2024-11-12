@@ -30,7 +30,7 @@ class Category(db.Model):
     products = db.relationship('Product', backref='category', lazy=True)
     
     
-class Products(db.Model):
+class Product(db.Model):
     __tablename__ = 'products'
     id = db.Column(db.Integer, primary_key=True)
     product_name = db.Column(db.String(100), nullable=False)
