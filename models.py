@@ -1,16 +1,37 @@
 from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy_serializer import SerializerMixin
+# from sqlalchemy_serializer import SerializerMixin
+from datetime import datetime
 
 db = SQLAlchemy()
 
-class User(db.Model):
-    __tablename__ = "users"
+class Customer(db.Model):
+    __tablename__ = "customers"
 
     id = db.Column(db.Integer, primary_key=True)
-    username = db.Column(db.String(50), unique=True, nullable=False)
-    password = db.Column(db.String(100), nullable=False)
+    first_name = db.Column(db.String(50))
+    last_name = db.Column(db.String(50))
+    email = db.Column(db.String(120), unique=True, nullable=False)
+    password = db.Column(db.String(120), nullable=False)
+    address = db.Column(db.String(120), nullable=False)
+    phone_number = db.Column(db.String(15))
     role = db.Column(db.String(20), default="customer")
+    
+    carts = db.relationship('Cart', backref='customer', lazy=True)
 
+class Company(db.Model):
+    __tablename__ = 'companies'
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(50), unique=True, nullable=False)
+    products = db.relationship('Product', backref='company', lazy=True)
+    
+    
+class Category(db.Model):
+    __tablename__ = 'categories'
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(50), unique=True, nullable=False)
+    products = db.relationship('Product', backref='category', lazy=True)
 
 class Product(db.Model):
     __tablename__ = "products"
@@ -21,12 +42,24 @@ class Product(db.Model):
     price = db.Column(db.Float, nullable=False)
     category = db.Column(db.String(50), nullable=False)
 
+class Order(db.Model):
+    __tablename__ = "orders"
+
+    id = db.Column(db.Integer, primary_key=True)
+
+    customer_id = db.Column(db.Integer, db.ForeignKey('customers.id'), nullable=False)
+    
+    order_date = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    total = db.Column(db.Float, nullable=False)
+    customer = db.relationship('Customer', back_populates='orders', lazy=True)
+
+
 
 class Cart(db.Model):
     __tablename__ = "carts"
 
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    customer_id = db.Column(db.Integer, db.ForeignKey('customers.id'), nullable=False)
     items = db.relationship('CartItem', backref='cart', lazy=True)
 
 
