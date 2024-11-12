@@ -1,11 +1,8 @@
 from flask import Flask, request, jsonify
-<<<<<<< HEAD
+from models import db, Products, Company, Category, Customer, Order, Blog
 from flask_migrate import Migrate
-from models import db, Products, Company, Category, Customer, Order
-=======
-from models import db, Product, Company, Category, Customer, Order, Blog
-from flask_migrate import Migrate
->>>>>>> a1aa3218a5b7b2ec2dd8b2919a4429a1faa94372
+from datetime import datetime
+
 
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///beauty.db'
@@ -103,18 +100,38 @@ def create_order():
         db.session.rollback()
         return jsonify({"error": "Database error: " + str(e)}), 500
 
+
 @app.route('/blogs', methods=['POST'])
 def create_blog():
-    data = request.get_json()
-    new_blog = Blog(
-        title=data.get('title'),
-        content=data.get('content'),
-        author=data.get('author'),
-        date_posted=data.get('date_posted')
-    )
-    db.session.add(new_blog)
-    db.session.commit()
-    return jsonify({"message":"Blog created successfully"}), 201
+    try:
+        data = request.get_json()
+        title = data.get('title')
+        content = data.get('content')
+        date_posted = data.get('date_posted', datetime.utcnow())
+
+        if isinstance(date_posted, str):
+            date_posted = datetime.fromisoformat(date_posted)
+
+        if not title or not content:
+            return jsonify({"error": "Missing required fields"}), 400
+        
+        new_blog = Blog(
+            title=title,
+            content=content,
+            date_posted=date_posted
+        )
+        
+        db.session.add(new_blog)
+        db.session.commit()
+        return jsonify({"message": "Blog created successfully", "blog": {
+            "title": new_blog.title,
+            "content": new_blog.content,
+            "date_posted": new_blog.date_posted
+        }}), 201
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": "Database error: " + str(e)}), 500
+
 
 if __name__ == '__main__':
     with app.app_context():
