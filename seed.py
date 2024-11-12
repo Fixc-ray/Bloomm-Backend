@@ -1,4 +1,4 @@
-from models import db, Customer, Company, Category, Product, Order
+from models import db, Customer, Company, Category, Products, Order
 from app import app 
 
 
@@ -13,7 +13,7 @@ with app.app_context():
     company1 = Company(name="Garnier")
     company2 = Company(name="L'Oreal")
     
-    product1 = Product(
+    product1 = Products(
         product_name="FaceCream",
         product_model="FC100",
         price=20.00,

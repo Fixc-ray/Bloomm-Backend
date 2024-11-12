@@ -1,5 +1,5 @@
 from flask import Flask, request, jsonify
-from models import db, Products, Company, Category, Customer, Order, Blog
+from models import db, Product, Company, Category, Customer, Order, Blog
 from flask_migrate import Migrate
 
 app = Flask(__name__)
@@ -96,4 +96,4 @@ def create_blog():
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()
-        app.run(port=8080, debug=True)  # run the app in debug mode
+        app.run(port=8080, debug=True)  
