@@ -1,11 +1,12 @@
 from flask import Flask, request, jsonify
-from models import db, Products, Company, Category, Customer, Order
-
+from models import db, Products, Company, Category, Customer, Order, Blog
+from flask_migrate import Migrate
 
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///beauty.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db.init_app(app)
+migrate = Migrate(app, db)
 
 
 @app.route('/products', methods=['POST'])
@@ -80,6 +81,17 @@ def create_order():
     db.session.commit()
     return jsonify({"message":"Order created successfully"}), 201
 
+@app.route('/blogs', methods=['POST'])
+def create_blog():
+    data = request.get_json()
+    new_blog = Blog(
+        title=data.get('title'),
+        content=data.get('content'),
+        date_posted=data.get('date_posted')
+    )
+    db.session.add(new_blog)
+    db.session.commit()
+    return jsonify({"message":"Blog created successfully"}), 201
 
 if __name__ == '__main__':
     with app.app_context():
