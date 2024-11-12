@@ -8,6 +8,37 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db.init_app(app)
 migrate = Migrate(app, db)
 
+@app.route('/register', methods=['POST'])
+def register():
+    try:
+        data = request.get_json()
+        new_user = Customer(
+            username=data.get('username'),
+            email=data.get('email'),
+            password=data.get('password'),  # Should hash before storing
+            first_name=data.get('first_name', ''),
+            last_name=data.get('last_name', ''),
+            address=data.get('address', ''),
+            phone_number=data.get('phone_number', '')
+        )
+        db.session.add(new_user)
+        db.session.commit()
+        return jsonify({"message": "User registered successfully"}), 201
+    except Exception as e:
+        db.session.rollback()  # Revert changes if there is an error
+        print(f"Error occurred: {e}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/login', methods=['POST'])
+def login():
+    data = request.get_json()
+    user = Customer.query.filter_by(username=data.get('username')).first()
+    if user and user.check_password(data.get('password')):
+        return jsonify({"message": "Login successful"}), 200
+    else:
+        return jsonify({"message": "Invalid credentials"}), 401
+
+
 
 @app.route('/products', methods=['POST'])
 def create_product():
@@ -48,7 +79,7 @@ def create_product():
                 "price": new_product.price,
                 "category_id": new_product.category_id,
                 "photo_url": new_product.photo_url,
-                "company_name": company.name  # Correct reference to company name
+                "company_name": company.name  
             }
         }), 201
 
