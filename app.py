@@ -87,6 +87,7 @@ def create_blog():
     new_blog = Blog(
         title=data.get('title'),
         content=data.get('content'),
+        author=data.get('author'),
         date_posted=data.get('date_posted')
     )
     db.session.add(new_blog)
@@ -96,4 +97,4 @@ def create_blog():
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()
-        app.run(port=8080, debug=True)  
+        app.run(port=8080, debug=True)  # run the app in debug mode
