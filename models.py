@@ -46,10 +46,12 @@ class Products(db.Model):
     category_id = db.Column(db.Integer, db.ForeignKey('categories.id'), nullable=False)
     company_id = db.Column(db.Integer, db.ForeignKey('companies.id'), nullable=False)
     
-    rating = db.Column(db.Float)
     photo_url = db.Column(db.String(200))
+    rating = db.Column(db.Float, default=0.0)
+    rating_count = db.Column(db.Integer, default=0)
+    total_rating = db.Column(db.Float, default=0.0)
 
-
+    
 class Order(db.Model):
     __tablename__ = 'orders'
     

@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, render_template
 from models import db, Products, Company, Category, Customer, Order, Blog
 from flask_migrate import Migrate
 from datetime import datetime
@@ -11,14 +11,21 @@ db.init_app(app)
 migrate = Migrate(app, db)
 
 
+@app.route('/', methods=['GET'])
+def home():
+    return render_template('home.html')
+
+
 @app.route('/products', methods=['POST'])
 def create_product():
     data = request.get_json()
-    
+
     product_name = data.get('product_name')
     product_model = data.get('product_model')
     price = data.get('price')
     category_id = data.get('category_id')
+    description = data.get('description', '')
+    rating = data.get('rating')
     photo_url = data.get('photo_url')
     company_name = data.get('company_name')
 
@@ -29,17 +36,18 @@ def create_product():
     if not company:
         company = Company(name=company_name)
         db.session.add(company)
-    
     category = Category.query.get(category_id)
     if not category:
         return jsonify({"error": "Invalid category ID"}), 400
-    
+
     try:
         new_product = Products(
             product_name=product_name,
             product_model=product_model,
             price=price,
             category_id=category_id,
+            description=description, 
+            rating=rating,
             photo_url=photo_url,
             company_id=company.id
         )
@@ -54,6 +62,8 @@ def create_product():
                 "product_model": new_product.product_model,
                 "price": new_product.price,
                 "category_id": new_product.category_id,
+                "description": new_product.description, 
+                "rating": new_product.rating,
                 "photo_url": new_product.photo_url,
                 "company_name": company.name
             }
@@ -62,6 +72,46 @@ def create_product():
     except Exception as e:
         db.session.rollback()
         return jsonify({"error": "Database error: " + str(e)}), 500
+
+
+@app.route('/products', methods=['GET'])
+def get_products():
+    products = Products.query.all()
+    product_list = []
+    for product in products:
+        product_data = {
+            "id": product.id,
+            "product_name": product.product_name,
+            "product_model": product.product_model,
+            "price": product.price,
+            "category_id": product.category_id,
+            "description": product.description,
+            "rating": product.rating,
+            "photo_url": product.photo_url,
+            "company_name": product.company.name
+        }
+        product_list.append(product_data)
+    return jsonify({"products": product_list}), 200
+
+
+@app.route('/products/<int:product_id>', methods=['PUT'])
+def update_product(product_id):
+    product = Products.query.get(product_id)
+    if not product:
+        return jsonify({"error": "Product not found"}), 404
+
+    data = request.get_json()
+    product.product_name = data.get('product_name', product.product_name)
+    product.product_model = data.get('product_model', product.product_model)
+    product.price = data.get('price', product.price)
+    product.category_id = data.get('category_id', product.category_id)
+    product.company_id = data.get('company_id', product.company_id)
+    product.description = data.get('description', product.description)
+    product.rating = data.get('rating', product.rating)
+    product.photo_url = data.get('photo_url', product.photo_url)
+
+    db.session.commit()
+    return jsonify({"message": "Product updated successfully"}), 200
 
 
 @app.route('/customers', methods=['POST'])
@@ -131,6 +181,37 @@ def create_blog():
     except Exception as e:
         db.session.rollback()
         return jsonify({"error": "Database error: " + str(e)}), 500
+    
+    
+@app.route('/products/<int:product_id>rate', methods=['POST'])
+def rate_product(product_id):
+    product = Products.query.get(product_id)
+    if not product:
+        return jsonify({"error": "Product not found"}), 404
+    
+    data = request.get_json()
+    new_rating = data.get('rating')
+    
+    if not (0 <= new_rating <= 5):
+        return jsonify({"error": "Rating must be between 0 and 5"}), 400
+    
+    product.total_rating += new_rating
+    product.rating_count += 1 
+    
+    product.rating = product.total_rating / product.rating_count
+    
+    try:
+        db.session.commit()
+        return jsonify({"message": "Product rated successfully", "product": {
+            "id": product.id,
+            "product_name": product.product_name,
+            "average_rating": product.rating,
+            "total_rating": product.total_rating
+        }
+                        }), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": f"Failed to update rating:{str(e)}"}), 500
 
 
 if __name__ == '__main__':
