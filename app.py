@@ -3,46 +3,12 @@ from models import db, Products, Company, Category, Customer, Order, Blog
 from flask_migrate import Migrate
 from datetime import datetime
 
-from flask import Flask, request, jsonify
-from models import db, Products, Company, Category, Customer, Order, Blog
-from flask_migrate import Migrate
 
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///beauty.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db.init_app(app)
 migrate = Migrate(app, db)
-
-@app.route('/register', methods=['POST'])
-def register():
-    try:
-        data = request.get_json()
-        new_user = Customer(
-            username=data.get('username'),
-            email=data.get('email'),
-            password=data.get('password'),  
-            first_name=data.get('first_name', ''),
-            last_name=data.get('last_name', ''),
-            address=data.get('address', ''),
-            phone_number=data.get('phone_number', '')
-        )
-        db.session.add(new_user)
-        db.session.commit()
-        return jsonify({"message": "User registered successfully"}), 201
-    except Exception as e:
-        db.session.rollback()  
-        print(f"Error occurred: {e}")
-        return jsonify({"error": str(e)}), 500
-
-@app.route('/login', methods=['POST'])
-def login():
-    data = request.get_json()
-    user = Customer.query.filter_by(username=data.get('username')).first()
-    if user and user.check_password(data.get('password')):
-        return jsonify({"message": "Login successful"}), 200
-    else:
-        return jsonify({"message": "Invalid credentials"}), 401
-
 
 
 @app.route('/', methods=['GET'])
@@ -53,16 +19,18 @@ def home():
 @app.route('/products', methods=['POST'])
 def create_product():
     data = request.get_json()
-    
+
     product_name = data.get('product_name')
     product_model = data.get('product_model')
     price = data.get('price')
     category_id = data.get('category_id')
+    description = data.get('description', '')
+    rating = data.get('rating')
     photo_url = data.get('photo_url')
     company_name = data.get('company_name')
 
-    if not (product_name and price is not None and category_id and company_name):
-            return jsonify({"error": "Missing required fields"}), 400
+    if not (product_name and price and category_id and company_name):
+        return jsonify({"error": "Missing required fields"}), 400
 
     company = Company.query.filter_by(name=company_name).first()
     if not company:
@@ -83,7 +51,7 @@ def create_product():
             photo_url=photo_url,
             company_id=company.id
         )
-
+        
         db.session.add(new_product)
         db.session.commit()
 
@@ -100,15 +68,10 @@ def create_product():
                 "company_name": company.name
             }
         }), 201
-
-    except KeyError as e:
-        return jsonify({"error": f"Missing key in request data: {str(e)}"}), 400
-    except ValueError as e:
-        return jsonify({"error": f"Invalid value: {str(e)}"}), 400
+    
     except Exception as e:
-        # Log the error message for debugging purposes
         db.session.rollback()
-        return jsonify({"error": f"Database error: {str(e)}"}), 500
+        return jsonify({"error": "Database error: " + str(e)}), 500
 
 
 @app.route('/products', methods=['GET'])
@@ -265,15 +228,6 @@ def rate_product(product_id):
         db.session.rollback()
         return jsonify({"error": f"Failed to update rating:{str(e)}"}), 500
 
-    data = request.get_json()
-    new_blog = Blog(
-        title=data.get('title'),
-        content=data.get('content'),
-        date_posted=data.get('date_posted')
-    )
-    db.session.add(new_blog)
-    db.session.commit()
-    return jsonify({"message":"Blog created successfully"}), 201
 
 if __name__ == '__main__':
     with app.app_context():
