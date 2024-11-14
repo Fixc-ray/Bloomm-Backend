@@ -4,7 +4,7 @@ from flask_migrate import Migrate
 from datetime import datetime
 
 from flask import Flask, request, jsonify
-from models import db, Product, Company, Category, Customer, Order, Blog
+from models import db, Products, Company, Category, Customer, Order, Blog
 from flask_migrate import Migrate
 
 app = Flask(__name__)
