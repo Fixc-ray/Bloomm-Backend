@@ -6,7 +6,6 @@ from models import db, Product, Company, Category, Customer, Order
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///beauty.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-
 db.init_app(app)
 migrate = Migrate(app, db)
 
