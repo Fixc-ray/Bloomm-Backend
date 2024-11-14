@@ -183,6 +183,21 @@ def create_blog():
         return jsonify({"error": "Database error: " + str(e)}), 500
     
     
+@app.route('/blogs', methods=['GET'])
+def get_blogs():
+    blogs = Blog.query.all()
+    blog_list = []
+    for blog in blogs:
+        blog_data = {
+            "id": blog.id,
+            "title": blog.title,
+            "content": blog.content,
+            "date_posted": blog.date_posted
+        }
+        blog_list.append(blog_data)
+    return jsonify({"blogs": blog_list}), 200
+
+    
 @app.route('/products/<int:product_id>rate', methods=['POST'])
 def rate_product(product_id):
     product = Products.query.get(product_id)
