@@ -15,7 +15,7 @@ def register():
         new_user = Customer(
             username=data.get('username'),
             email=data.get('email'),
-            password=data.get('password'),  # Should hash before storing
+            password=data.get('password'),  
             first_name=data.get('first_name', ''),
             last_name=data.get('last_name', ''),
             address=data.get('address', ''),
@@ -25,7 +25,7 @@ def register():
         db.session.commit()
         return jsonify({"message": "User registered successfully"}), 201
     except Exception as e:
-        db.session.rollback()  # Revert changes if there is an error
+        db.session.rollback()  
         print(f"Error occurred: {e}")
         return jsonify({"error": str(e)}), 500
 
@@ -42,28 +42,38 @@ def login():
 
 @app.route('/products', methods=['POST'])
 def create_product():
-    data = request.get_json()
-    
-    product_name = data.get('product_name')
-    product_model = data.get('product_model')
-    price = data.get('price')
-    category_id = data.get('category_id')
-    photo_url = data.get('photo_url')
-    company_name = data.get('company_name')
-
-    if not (product_name and price and category_id and company_name):
-        return jsonify({"error": "Missing required fields"}), 400
-
-    company = Company.query.filter_by(name=company_name).first()
-    if not company:
-        company = Company(name=company_name)
-        db.session.add(company)
-    
-    category = Category.query.get(category_id)
-    if not category:
-        return jsonify({"error": "Invalid category ID"}), 400
-    
     try:
+        data = request.get_json()
+
+        product_name = data.get('product_name')
+        product_model = data.get('product_model')
+        price = data.get('price')
+        category_id = data.get('category_id')
+        photo_url = data.get('photo_url')
+        company_name = data.get('company_name')
+
+        if not (product_name and price is not None and category_id and company_name):
+            return jsonify({"error": "Missing required fields"}), 400
+
+        if not isinstance(price, (int, float)) or price <= 0:
+            return jsonify({"error": "Invalid price value"}), 400
+
+        if not isinstance(category_id, int):
+            return jsonify({"error": "Invalid category ID; must be an integer"}), 400
+
+        # Check if the company exists or create a new one
+        company = Company.query.filter_by(name=company_name).first()
+        if not company:
+            company = Company(name=company_name)
+            db.session.add(company)
+            db.session.flush()  # Ensure the company ID is generated for the new record
+
+        # Check if the category exists
+        category = Category.query.get(category_id)
+        if not category:
+            return jsonify({"error": "Invalid category ID"}), 400
+
+        # Create a new product entry
         new_product = Product(
             product_name=product_name,
             product_model=product_model,
@@ -72,7 +82,7 @@ def create_product():
             photo_url=photo_url,
             company_id=company.id
         )
-        
+
         db.session.add(new_product)
         db.session.commit()
 
@@ -87,10 +97,15 @@ def create_product():
                 "company_name": company.name
             }
         }), 201
-    
+
+    except KeyError as e:
+        return jsonify({"error": f"Missing key in request data: {str(e)}"}), 400
+    except ValueError as e:
+        return jsonify({"error": f"Invalid value: {str(e)}"}), 400
     except Exception as e:
+        # Log the error message for debugging purposes
         db.session.rollback()
-        return jsonify({"error": "Database error: " + str(e)}), 500
+        return jsonify({"error": f"Database error: {str(e)}"}), 500
 
 
 @app.route('/customers', methods=['POST'])
