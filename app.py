@@ -205,7 +205,7 @@ def get_blogs():
     return jsonify({"blogs": blog_list}), 200
 
     
-@app.route('/products/<int:product_id>rate', methods=['POST'])
+@app.route('/products/<int:product_id>/rate', methods=['POST'])
 def rate_product(product_id):
     product = Products.query.get(product_id)
     if not product:
@@ -236,6 +236,20 @@ def rate_product(product_id):
         return jsonify({"error": f"Failed to update rating:{str(e)}"}), 500
 
 
+@app.route('/products/<int:product_id>/rate', methods=['GET'])
+def get_rating(product_id):
+    product = Products.query.get(product_id)
+    if not product:
+        return jsonify({"error": "Product not found"}), 404
+
+    return jsonify({
+        "product_name": product.product_name,
+        "average_rating": product.rating,
+        "total_rating": product.total_rating,
+        "rating_count": product.rating_count
+    }), 200
+    
+    
 if __name__ == '__main__':
     with app.app_context():
         db.create_all() 
