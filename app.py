@@ -158,6 +158,7 @@ def create_blog():
         title = data.get('title')
         content = data.get('content')
         date_posted = data.get('date_posted', datetime.utcnow())
+        photo_url = data.get('photo_url', '')
 
         if isinstance(date_posted, str):
             date_posted = datetime.fromisoformat(date_posted)
@@ -168,20 +169,26 @@ def create_blog():
         new_blog = Blog(
             title=title,
             content=content,
-            date_posted=date_posted
+            date_posted=date_posted,
+            photo_url=photo_url 
         )
         
         db.session.add(new_blog)
         db.session.commit()
-        return jsonify({"message": "Blog created successfully", "blog": {
-            "title": new_blog.title,
-            "content": new_blog.content,
-            "date_posted": new_blog.date_posted
-        }}), 201
+        
+        return jsonify({
+            "message": "Blog created successfully", 
+            "blog": {
+                "title": new_blog.title,
+                "content": new_blog.content,
+                "date_posted": new_blog.date_posted,
+                "photo_url": new_blog.photo_url 
+            }
+        }), 201
     except Exception as e:
         db.session.rollback()
         return jsonify({"error": "Database error: " + str(e)}), 500
-    
+
     
 @app.route('/blogs', methods=['GET'])
 def get_blogs():
