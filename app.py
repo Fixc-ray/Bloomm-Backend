@@ -3,7 +3,9 @@ from models import db, Products, Company, Category, Customer, Order, Blog
 from flask_migrate import Migrate
 from datetime import datetime
 import os
-from flask_cors import CORS  # Import CORS
+from flask_cors import CORS  
+from mpesa import send_money_to_phone
+
 
 app = Flask(__name__)
 CORS(app)  # Enable CORS for all routes
@@ -231,6 +233,34 @@ def rate_product(product_id):
         db.session.rollback()
         return jsonify({"error": f"Failed to update rating:{str(e)}"}), 500
 
+@app.route('/pay', methods=['POST'])
+def pay():
+    data = request.get_json()
+    print("Received data:", data)  
+
+    phone_number = data.get('phone_number')
+    amount = data.get('amount')
+
+    if not phone_number or not amount:
+        return jsonify({"error": "Missing phone number or amount"}), 400
+
+    try:
+        response = send_money_to_phone(phone_number, amount)
+        print("M-Pesa response:", response)  
+        return jsonify(response), 200
+    except request.exceptions.RequestException as e:
+        print("Request exception:", e)  
+        return jsonify({"error": "Payment failed", "details": str(e)}), 500
+    except Exception as e:
+        print("General exception:", e)  
+        return jsonify({"error": "An unexpected error occurred", "details": str(e)}), 500
+
+@app.route('/callback', methods=['POST'])
+def callback():
+    """Handle callback from M-Pesa."""
+    data = request.get_json()
+    print('Callback received:', data)
+    return jsonify({"ResultCode": 0, "ResultDesc": "Success"})
 
 if __name__ == '__main__':
     with app.app_context():
