@@ -23,7 +23,7 @@ class Company(db.Model):
     
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(50), unique=True, nullable=False)
-    products = db.relationship('Products', backref='company', lazy=True)  # Corrected to 'Products'
+    products = db.relationship('Products', backref='company', lazy=True)
 
 
 class Category(db.Model):
@@ -62,7 +62,6 @@ class Order(db.Model):
     order_date = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     total = db.Column(db.Float, nullable=False)
     
-    # Ensure that the back_populates matches the relationship in Customer
     customer = db.relationship('Customer', back_populates='orders', lazy=True)
 
 
@@ -74,3 +73,4 @@ class Blog(db.Model):
     content = db.Column(db.Text, nullable=False)
     date_posted = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     photo_url = db.Column(db.String(200))
+    date_posted = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
