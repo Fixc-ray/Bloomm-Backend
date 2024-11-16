@@ -23,7 +23,7 @@ class Company(db.Model):
     
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(50), unique=True, nullable=False)
-    products = db.relationship('Products', backref='company', lazy=True)
+    products = db.relationship('Products', backref='company', lazy=True)  # Corrected to 'Products'
 
 
 class Category(db.Model):
@@ -31,7 +31,7 @@ class Category(db.Model):
     
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(50), unique=True, nullable=False)
-    products = db.relationship('Products', backref='category', lazy=True)  # Corrected to 'Products'
+    products = db.relationship('Products', backref='category', lazy=True)
     
     
 class Products(db.Model):
