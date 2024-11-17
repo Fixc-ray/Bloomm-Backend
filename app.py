@@ -1,6 +1,6 @@
 from flask import Flask, request, redirect, jsonify, render_template, sessions
 from flask_session import Session
-from models import db, Products, Company, Category, Customer, Order, Blog, Cart
+from models import db, Products, Company, Category, Customer, Order, Blog, Cart, CartItem
 from flask_migrate import Migrate
 from datetime import datetime
 import os
