@@ -27,7 +27,7 @@ def send_money_to_phone(phone_number, amount):
         "PartyB": phone_number,
         "Remarks": "Product payment",
         "QueueTimeOutURL": "https://your_domain.com/timeout",
-        "ResultURL": "https://your_domain.com/result",
+        "ResultURL": "https://your_/result",
         "Occasion": "ProductPurchase"
     }
 
