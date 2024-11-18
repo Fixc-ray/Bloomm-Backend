@@ -2,9 +2,15 @@ from flask import Flask, request, jsonify, render_template
 from models import db, Products, Company, Category, Customer, Order, Blog
 from flask_migrate import Migrate
 from datetime import datetime
+import os
+from flask_cors import CORS  
+from mpesa import send_money_to_phone
+import requests
 
 
 app = Flask(__name__)
+CORS(app)  # Enable CORS for all routes
+
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///beauty.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db.init_app(app)
@@ -236,6 +242,42 @@ def rate_product(product_id):
         return jsonify({"error": f"Failed to update rating:{str(e)}"}), 500
 
 
+@app.route('/pay', methods=['POST'])
+def pay():
+    data = request.get_json()
+    print("Received data:", data)
+
+    phone_number = data.get('phone_number')
+    amount = data.get('amount')
+
+    if not phone_number or not amount:
+        return jsonify({"error": "Missing phone number or amount"}), 400
+
+    try:
+        response = send_money_to_phone(phone_number, amount)
+        print("M-Pesa response:", response)
+
+        if response and "Message" in response:
+            return jsonify(response), 200
+        else:
+            return jsonify({"error": "M-Pesa response is invalid or empty", "response": response}), 500
+
+    except requests.exceptions.RequestException as e:
+        print("Request to M-Pesa failed:", e) 
+        return jsonify({"error": "Payment failed", "details": str(e)}), 500
+    except Exception as e:
+        print("General exception:", e)
+        return jsonify({"error": "An unexpected error occurred", "details": str(e)}), 500
+
+
+@app.route('/callback', methods=['POST'])
+def callback():
+    """Handle callback from M-Pesa."""
+    data = request.get_json()
+    print('Callback received:', data)
+    return jsonify({"ResultCode": 0, "ResultDesc": "Success"})
+
+
 @app.route('/products/<int:product_id>/rate', methods=['GET'])
 def get_rating(product_id):
     product = Products.query.get(product_id)
@@ -254,3 +296,4 @@ if __name__ == '__main__':
     with app.app_context():
         db.create_all() 
         app.run(port=8080, debug=True)
+        app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)), debug=True)

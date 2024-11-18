@@ -633,11 +633,11 @@ with app.app_context():
     )
     
     db.session.add_all([category1, category2, category3, category4, category5, category6, category7, category8, category9, category10, category11, category12, category13, category14, category15,
-                    company1, company2, company3, company4, company5, company6, company7, company8, company9, company10, company11, company12, company13, company14, company15, company16,
-                    company17, company18, company19, company20, company21,
-                    product1, product2, product3, product4, product5, product6, product7, product8, product9, product10, product11, product12, product13, product14, product15, product16,
-                    product17, product18, product19, product20, product21, product22, product23, product24, product25,
-                    blog1, blog2, blog3, blog4, blog5, blog6, blog7, blog8, blog9, blog10, blog11, blog12, blog13, blog14, blog15])
+                        company1, company2, company3, company4, company5, company6, company7, company8, company9, company10, company11, company12, company13, company14, company15, company16,
+                        company17, company18, company19, company20, company21,
+                        product1, product2, product3, product4, product5, product6, product7, product8, product9, product10, product11, product12, product13, product14, product15, product16,
+                        product17, product18, product19, product20, product21, product22, product23, product24, product25,
+                        blog1, blog2, blog3, blog4, blog5, blog6, blog7, blog8, blog9, blog10, blog11, blog12, blog13, blog14, blog15])
 
     db.session.commit()
 
