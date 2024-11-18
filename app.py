@@ -1,51 +1,89 @@
-from flask import Flask, request, redirect, jsonify, render_template, sessions
-from flask_session import Session
+from flask import Flask, request, jsonify, render_template,redirect
+from flask_cors import CORS
 from models import db, Products, Company, Category, Customer, Order, Blog, Cart, CartItem
 from flask_migrate import Migrate
-from datetime import datetime
-import os
-from flask_cors import CORS  
+from werkzeug.security import generate_password_hash, check_password_hash
+from flask_jwt_extended import JWTManager, create_access_token
+import traceback
 from mpesa import send_money_to_phone
 import requests
 import paypalrestsdk
 from dotenv import load_dotenv
 load_dotenv()
+from flask_jwt_extended import (
+    JWTManager, create_access_token, jwt_required, get_jwt_identity
+)
+from werkzeug.security import generate_password_hash, check_password_hash
+from datetime import datetime
+import os
 
 
 app = Flask(__name__)
-CORS(app)  
-
+CORS(app)  # Enable CORS for all routes and origins
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///beauty.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['JWT_SECRET_KEY'] = '972005679905596ccd4ed314bc98c944b88006d2bf5b229b4b04ee41b16159d0076ae05d861cf5b2d5bcc6f5057965096bb96659705c64738cf404737e6ac26b3f2422a89c12bd7d939163c20db680db25712b75de060dd668319ed57ef56c06172c82913abc4554fbe8107b860e23bcb65097b302200500c7341a720076e62ecf562bec94a8b75941f62c1faa038b2bbcd1896a9f3e42582b86e3dfe83ddc6bd103fc79229f5cb294742d47c9c3a15ebb5e7dea2b9deaddb174772595808b5abc704187316ac8a74b2adb451c3c1f0292126eb28ecd7ecc1c2f6c59177f3e8b0f115b4d027a9d386f131a803c6b5958e99d911b0cc730d0cd0e4bbe523462b4bf994225883c97589d6e8b298533a4e3f633089986c13035deafe9f865bfd0d4'
+
 db.init_app(app)
 migrate = Migrate(app, db)
+jwt = JWTManager(app)
 
-PAYPAL_BASE_URL = 'https://sandbox.paypal.com'
-PAYPAL_CLIENT_ID = os.getenv('PAYPAL_CLIENT_ID')
-PAYPAL_CLIENT_SECRET = os.getenv('PAYPAL_CLIENT_SECRET')
+@app.route('/register', methods=['POST'])
+def register():
+    try:
+        data = request.get_json()
+        first_name = data.get('first_name')
+        password = data.get('password')
+        email = data.get('email')
 
-if not PAYPAL_CLIENT_ID or not PAYPAL_CLIENT_SECRET:
-    raise ValueError("PayPal Client ID and Secret are not set!")
+        if not first_name or not password or not email:
+            return jsonify({'message': 'All fields are required'}), 400
 
-paypalrestsdk.configure({
-    "mode": "sandbox",  
-    "client_id": PAYPAL_CLIENT_ID,
-    "client_secret": PAYPAL_CLIENT_SECRET
-})
+        if Customer.query.filter_by(first_name=first_name).first():
+            return jsonify({'message': 'first_name already taken'}), 400
 
+        if Customer.query.filter_by(email=email).first():
+            return jsonify({'message': 'Email already exists'}), 400
 
+        hashed_password = generate_password_hash(password)
+        new_user = Customer(first_name=first_name, password=hashed_password, email=email)
 
+        db.session.add(new_user)
+        db.session.commit()
 
-paypalrestsdk.configure({
-    "mode": "sandbox",  # or "live"
-    "client_id": os.getenv("PAYPAL_CLIENT_ID"),
-    "client_secret": os.getenv("PAYPAL_CLIENT_SECRET")
-})
+        return jsonify({'message': 'Customer registered successfully'}), 201
+    except Exception as e:
+        print("Error occurred:", str(e))
+        traceback.print_exc()
+        return jsonify({'message': 'Internal server error'}), 500
+    
+@app.route('/login', methods=['POST'])
+def login():
+    try:
+        data = request.get_json()
+        first_name = data.get('first_name')
+        password = data.get('password')
 
-@app.route('/', methods=['GET'])
-def home():
-    return render_template('home.html')
+        if not first_name or not password:
+            return jsonify({'message': 'Both fields are required'}), 400
 
+        user = Customer.query.filter_by(first_name=first_name).first()
+
+        if not user or not check_password_hash(user.password, password):
+            return jsonify({'message': 'Invalid credentials'}), 401
+
+        access_token = create_access_token(identity=user.user_id)
+        return jsonify({
+            'access_token': access_token,
+            'user': {
+                'first_name': user.first_name,
+                'email': user.email
+            }
+        }), 200
+    except Exception as e:
+        print("Error occurred:", str(e))
+        traceback.print_exc()
+        return jsonify({'message': 'Internal server error'}), 500
 
 @app.route('/products', methods=['POST'])
 def create_product():
