@@ -72,5 +72,31 @@ class Blog(db.Model):
     title = db.Column(db.String(100), nullable=False)
     content = db.Column(db.Text, nullable=False)
     date_posted = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
-    photo_url = db.Column(db.String(200))
-    date_posted = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+
+class Cart(db.Model):
+    __tablename__ = 'carts'
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, nullable=False)
+    items = db.relationship('CartItem', backref='cart', lazy=True)
+    
+    def __init__(self, user_id):
+        self.user_id = user_id
+
+
+class CartItem(db.Model):
+    __tablename__ = 'cart_items'
+    id = db.Column(db.Integer, primary_key=True)
+    product_id = db.Column(db.Integer, nullable=False)
+    quantity = db.Column(db.Integer, nullable=False)
+    price = db.Column(db.Float, nullable=False)
+    cart_id = db.Column(db.Integer, db.ForeignKey('carts.id'), nullable=False)
+    
+    def __init__(self, product_id, quantity, price, cart_id):
+        self.product_id = product_id
+        self.quantity = quantity
+        self.price = price
+        self.cart_id = cart_id
+
+    def total(self):
+        return self.price * self.quantity
