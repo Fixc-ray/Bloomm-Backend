@@ -435,7 +435,6 @@ def payPaypal():
         print("Payment created successfully")
         for link in payment.links:
             if link.rel == "approval_url":
-                # Redirect the user to the approval URL
                 return redirect(link.href)
     else:
         return jsonify({"error": payment.error})
