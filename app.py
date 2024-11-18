@@ -18,7 +18,6 @@ from datetime import datetime
 import os
 
 
-
 app = Flask(__name__)
 CORS(app)  # Enable CORS for all routes and origins
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///beauty.db'
