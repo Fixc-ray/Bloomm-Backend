@@ -39,20 +39,31 @@ def register():
     try:
         data = request.get_json()
         first_name = data.get('first_name')
+        last_name = data.get('last_name')
         password = data.get('password')
         email = data.get('email')
+        address = data.get('address')  
+        phone_number = data.get('phone_number')
 
-        if not first_name or not password or not email:
+        if not first_name or not password or not email or not address:
             return jsonify({'message': 'All fields are required'}), 400
 
         if Customer.query.filter_by(first_name=first_name).first():
-            return jsonify({'message': 'first_name already taken'}), 400
+            return jsonify({'message': 'First name already taken'}), 400
 
         if Customer.query.filter_by(email=email).first():
             return jsonify({'message': 'Email already exists'}), 400
 
         hashed_password = generate_password_hash(password)
-        new_user = Customer(first_name=first_name, password=hashed_password, email=email)
+
+        new_user = Customer(
+            first_name=first_name,
+            last_name=last_name,
+            email=email,
+            password=hashed_password,
+            address=address,
+            phone_number=phone_number
+        )
 
         db.session.add(new_user)
         db.session.commit()
@@ -62,6 +73,26 @@ def register():
         print("Error occurred:", str(e))
         traceback.print_exc()
         return jsonify({'message': 'Internal server error'}), 500
+    
+    
+@app.route('/customers', methods=['POST'])
+def create_customer():
+    data = request.get_json()
+    new_customer = Customer(
+        first_name=data.get('first_name'),
+        last_name=data.get('last_name'),
+        email=data.get('email'),
+        password=data.get('password'),
+        address=data.get('address'),
+        phone_number=data.get('phone_number')
+    )
+    try:
+        db.session.add(new_customer)
+        db.session.commit()
+        return jsonify({"message": "Customer created successfully"}), 201
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": "Database error: " + str(e)}), 500
     
     
 @app.route('/login', methods=['POST'])
@@ -79,8 +110,9 @@ def login():
         if not user or not check_password_hash(user.password, password):
             return jsonify({'message': 'Invalid credentials'}), 401
 
-        access_token = create_access_token(identity=user.user_id)
+        access_token = create_access_token(identity=user.id)
         return jsonify({
+            'message': 'Login successful',
             'access_token': access_token,
             'user': {
                 'first_name': user.first_name,
@@ -91,7 +123,29 @@ def login():
         print("Error occurred:", str(e))
         traceback.print_exc()
         return jsonify({'message': 'Internal server error'}), 500
+    
 
+@app.route('/customers', methods=['GET'])
+def get_customers():
+    try:
+        customers = Customer.query.all() 
+        customers_list = []
+
+        for customer in customers:
+            customer_data = {
+                "first_name": customer.first_name,
+                "last_name": customer.last_name,
+                "email": customer.email,
+                "address": customer.address,
+                "phone_number": customer.phone_number
+            }
+            customers_list.append(customer_data)
+
+        return jsonify({"customers": customers_list}), 200
+
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({"error": "Failed to fetch customers: " + str(e)}), 500
 
 @app.route('/products', methods=['POST'])
 def create_product():
@@ -289,26 +343,6 @@ def clear_cart():
         db.session.commit()
     
     return jsonify({"message": "Cart cleared"})
-
-
-@app.route('/customers', methods=['POST'])
-def create_customer():
-    data = request.get_json()
-    new_customer = Customer(
-        first_name=data.get('first_name'),
-        last_name=data.get('last_name'),
-        email=data.get('email'),
-        password=data.get('password'),
-        address=data.get('address'),
-        phone_number=data.get('phone_number')
-    )
-    try:
-        db.session.add(new_customer)
-        db.session.commit()
-        return jsonify({"message": "Customer created successfully"}), 201
-    except Exception as e:
-        db.session.rollback()
-        return jsonify({"error": "Database error: " + str(e)}), 500
 
 
 @app.route('/blogs', methods=['POST'])

@@ -72,7 +72,8 @@ class Blog(db.Model):
     title = db.Column(db.String(100), nullable=False)
     content = db.Column(db.Text, nullable=False)
     date_posted = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
-
+    photo_url = db.Column(db.String(255), nullable=True) 
+    
 
 class Cart(db.Model):
     __tablename__ = 'carts'
