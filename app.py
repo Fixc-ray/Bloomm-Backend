@@ -1,7 +1,8 @@
-from flask import Flask, request, jsonify, render_template
+from flask import Flask, request, jsonify, render_template, redirect
 from flask_migrate import Migrate
 from models import db, Product, Company, Category, Customer, Order, Blog
 from datetime import datetime
+import paypalrestsdk
 
 
 app = Flask(__name__)
@@ -211,6 +212,57 @@ def rate_product(product_id):
     except Exception as e:
         db.session.rollback()
         return jsonify({"error": f"Failed to update rating:{str(e)}"}), 500
+
+
+@app.route('/pay/paypal', methods=['GET'])
+def payPaypal():
+    payment = paypalrestsdk.Payment({
+        "intent": "sale",
+        "payer": {
+            "payment_method": "paypal"
+        },
+        "redirect_urls": {
+            "return_url": "http://localhost:5000/payment/execute",
+            "cancel_url": "http://localhost:5000/"
+        },
+        "transactions": [{
+            "item_list": {
+                "items": [{
+                    "name": "Cart Items",
+                    "sku": "001",
+                    "price": "15.00",
+                    "currency": "USD",
+                    "quantity": 1
+                }]
+            },
+            "amount": {
+                "total": "15.00",
+                "currency": "USD"
+            },
+            "description": "Payment for items in the cart"
+        }]
+    })
+
+    if payment.create():
+        print("Payment created successfully")
+        for link in payment.links:
+            if link.rel == "approval_url":
+                return redirect(link.href)
+    else:
+        return jsonify({"error": payment.error})
+
+
+@app.route('/payment/execute', methods=['GET'])
+def execute_payment():
+    payment_id = request.args.get('paymentId')
+    payer_id = request.args.get('PayerID')
+
+    payment = paypalrestsdk.Payment.find(payment_id)
+
+    if payment.execute({"payer_id": payer_id}):
+        return "Payment executed successfully"
+    else:
+        return jsonify({"error": payment.error})
     
 
 
