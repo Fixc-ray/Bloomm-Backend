@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, render_template,redirect
+from flask import Flask, request, jsonify, render_template, redirect
 from flask_cors import CORS
 from models import db, Products, Company, Category, Customer, Order, Blog, Cart, CartItem
 from flask_migrate import Migrate
@@ -27,6 +27,12 @@ app.config['JWT_SECRET_KEY'] = '972005679905596ccd4ed314bc98c944b88006d2bf5b229b
 db.init_app(app)
 migrate = Migrate(app, db)
 jwt = JWTManager(app)
+
+
+@app.route('/', methods=['GET'])
+def home():
+    return render_template('home.html')
+
 
 @app.route('/register', methods=['POST'])
 def register():
@@ -57,6 +63,7 @@ def register():
         traceback.print_exc()
         return jsonify({'message': 'Internal server error'}), 500
     
+    
 @app.route('/login', methods=['POST'])
 def login():
     try:
@@ -84,6 +91,7 @@ def login():
         print("Error occurred:", str(e))
         traceback.print_exc()
         return jsonify({'message': 'Internal server error'}), 500
+
 
 @app.route('/products', methods=['POST'])
 def create_product():
@@ -181,6 +189,8 @@ def update_product(product_id):
 
     db.session.commit()
     return jsonify({"message": "Product updated successfully"}), 200
+
+
 @app.route('/cart', methods=['GET'])
 def get_cart():
     """Return the current cart contents."""
@@ -198,6 +208,7 @@ def get_cart():
     } for item in cart.items]
 
     return jsonify({"cart": cart_items})
+
 
 @app.route('/cart', methods=['POST'])
 def add_to_cart():
@@ -238,6 +249,7 @@ def add_to_cart():
     db.session.commit()
     return jsonify({"message": "Item added to cart", "cart": get_cart()})
 
+
 @app.route('/cart/<int:item_id>', methods=['PUT'])
 def update_cart_item(item_id):
     """Update the quantity of an item in the cart."""
@@ -253,6 +265,7 @@ def update_cart_item(item_id):
     db.session.commit()
     return jsonify({"message": "Item updated", "cart": get_cart()})
 
+
 @app.route('/cart/<int:item_id>', methods=['DELETE'])
 def remove_from_cart(item_id):
     """Remove an item from the cart."""
@@ -263,6 +276,7 @@ def remove_from_cart(item_id):
     db.session.delete(cart_item)
     db.session.commit()
     return jsonify({"message": "Item removed", "cart": get_cart()})
+
 
 @app.route('/cart/clear', methods=['DELETE'])
 def clear_cart():
@@ -275,6 +289,7 @@ def clear_cart():
         db.session.commit()
     
     return jsonify({"message": "Cart cleared"})
+
 
 @app.route('/customers', methods=['POST'])
 def create_customer():
@@ -295,6 +310,7 @@ def create_customer():
         db.session.rollback()
         return jsonify({"error": "Database error: " + str(e)}), 500
 
+
 @app.route('/blogs', methods=['POST'])
 def create_blog():
     try:
@@ -302,6 +318,7 @@ def create_blog():
         title = data.get('title')
         content = data.get('content')
         date_posted = data.get('date_posted', datetime.utcnow())
+        photo_url = data.get('photo_url', '')
 
         if isinstance(date_posted, str):
             date_posted = datetime.fromisoformat(date_posted)
@@ -312,20 +329,26 @@ def create_blog():
         new_blog = Blog(
             title=title,
             content=content,
-            date_posted=date_posted
+            date_posted=date_posted,
+            photo_url=photo_url 
         )
         
         db.session.add(new_blog)
         db.session.commit()
-        return jsonify({"message": "Blog created successfully", "blog": {
-            "title": new_blog.title,
-            "content": new_blog.content,
-            "date_posted": new_blog.date_posted
-        }}), 201
+        
+        return jsonify({
+            "message": "Blog created successfully", 
+            "blog": {
+                "title": new_blog.title,
+                "content": new_blog.content,
+                "date_posted": new_blog.date_posted,
+                "photo_url": new_blog.photo_url 
+            }
+        }), 201
     except Exception as e:
         db.session.rollback()
         return jsonify({"error": "Database error: " + str(e)}), 500
-    
+
     
 @app.route('/blogs', methods=['GET'])
 def get_blogs():
@@ -342,7 +365,7 @@ def get_blogs():
     return jsonify({"blogs": blog_list}), 200
 
     
-@app.route('/products/<int:product_id>rate', methods=['POST'])
+@app.route('/products/<int:product_id>/rate', methods=['POST'])
 def rate_product(product_id):
     product = Products.query.get(product_id)
     if not product:
@@ -372,10 +395,11 @@ def rate_product(product_id):
         db.session.rollback()
         return jsonify({"error": f"Failed to update rating:{str(e)}"}), 500
 
+
 @app.route('/pay/mpesa', methods=['POST'])
 def payMpesa():
     data = request.get_json()
-    print("Received data:", data)  
+    print("Received data:", data)
 
     phone_number = data.get('phone_number')
     amount = data.get('amount')
@@ -385,14 +409,20 @@ def payMpesa():
 
     try:
         response = send_money_to_phone(phone_number, amount)
-        print("M-Pesa response:", response)  
-        return jsonify(response), 200
-    except request.exceptions.RequestException as e:
-        print("Request exception:", e)  
+        print("M-Pesa response:", response)
+
+        if response and "Message" in response:
+            return jsonify(response), 200
+        else:
+            return jsonify({"error": "M-Pesa response is invalid or empty", "response": response}), 500
+
+    except requests.exceptions.RequestException as e:
+        print("Request to M-Pesa failed:", e) 
         return jsonify({"error": "Payment failed", "details": str(e)}), 500
     except Exception as e:
-        print("General exception:", e)  
+        print("General exception:", e)
         return jsonify({"error": "An unexpected error occurred", "details": str(e)}), 500
+
 
 @app.route('/callback', methods=['POST'])
 def callback():
@@ -400,6 +430,7 @@ def callback():
     data = request.get_json()
     print('Callback received:', data)
     return jsonify({"ResultCode": 0, "ResultDesc": "Success"})
+
 
 @app.route('/pay/paypal', methods=['GET'])
 def payPaypal():
@@ -439,6 +470,7 @@ def payPaypal():
     else:
         return jsonify({"error": payment.error})
 
+
 @app.route('/payment/execute', methods=['GET'])
 def execute_payment():
     payment_id = request.args.get('paymentId')
@@ -455,4 +487,4 @@ def execute_payment():
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()
-        app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)), debug=True)
+        app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 8080)), debug=True)

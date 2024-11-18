@@ -31,7 +31,7 @@ class Category(db.Model):
     
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(50), unique=True, nullable=False)
-    products = db.relationship('Products', backref='category', lazy=True)  # Corrected to 'Products'
+    products = db.relationship('Products', backref='category', lazy=True)
     
     
 class Products(db.Model):
@@ -62,7 +62,6 @@ class Order(db.Model):
     order_date = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     total = db.Column(db.Float, nullable=False)
     
-    # Ensure that the back_populates matches the relationship in Customer
     customer = db.relationship('Customer', back_populates='orders', lazy=True)
 
 
@@ -74,6 +73,7 @@ class Blog(db.Model):
     content = db.Column(db.Text, nullable=False)
     date_posted = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
 
+
 class Cart(db.Model):
     __tablename__ = 'carts'
     id = db.Column(db.Integer, primary_key=True)
@@ -82,6 +82,7 @@ class Cart(db.Model):
     
     def __init__(self, user_id):
         self.user_id = user_id
+
 
 class CartItem(db.Model):
     __tablename__ = 'cart_items'
