@@ -263,6 +263,7 @@ def create_cart():
     return jsonify({'message': 'Cart created successfully', 'cart_id': new_cart.id}), 201
 
 
+@app.route('cart/<int:cart_id>', methods=['GET'])
 def get_cart(customer_id):
     cart = Cart.query.filter_by(user_id=customer_id).first()
     if cart:
@@ -529,7 +530,6 @@ def payPaypal():
         print("Payment created successfully")
         for link in payment.links:
             if link.rel == "approval_url":
-                # Redirect the user to the approval URL
                 return redirect(link.href)
     else:
         return jsonify({"error": payment.error})

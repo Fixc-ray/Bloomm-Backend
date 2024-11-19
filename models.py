@@ -3,6 +3,7 @@ from datetime import datetime
 
 db = SQLAlchemy()
 
+
 class Customer(db.Model):
     __tablename__ = 'customers'
     
@@ -15,9 +16,6 @@ class Customer(db.Model):
     phone_number = db.Column(db.String(15))
     
     orders = db.relationship('Order', back_populates='customer', lazy=True)
-    
-    # Relationship to Cart (avoid backref conflicts)
-    cart = db.relationship('Cart', backref='owner', uselist=False, overlaps="carts")  # One cart per customer
 
 
 class Company(db.Model):
@@ -25,7 +23,7 @@ class Company(db.Model):
     
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(50), unique=True, nullable=False)
-    products = db.relationship('Products', backref='company', lazy=True)
+    products = db.relationship('Products', backref='company', lazy=True)  # Corrected to 'Products'
 
 
 class Category(db.Model):
@@ -58,6 +56,7 @@ class Order(db.Model):
     __tablename__ = 'orders'
     
     id = db.Column(db.Integer, primary_key=True)
+    
     customer_id = db.Column(db.Integer, db.ForeignKey('customers.id'), nullable=False)
     
     order_date = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
@@ -81,12 +80,9 @@ class Cart(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('customers.id'), nullable=False)
+    customer = db.relationship('Customer', backref='carts')
     
-    # Relationship with CartItem
-    cart_items = db.relationship('CartItem', back_populates='cart', cascade='all, delete-orphan')
-    
-    # One cart per customer (backref changed to 'owner')
-    customer = db.relationship('Customer', backref='carts', uselist=False, overlaps="cart")  # One cart per customer
+    cart_items = db.relationship('CartItem', back_populates='cart')
 
     def __init__(self, user_id):
         self.user_id = user_id
@@ -96,13 +92,12 @@ class CartItem(db.Model):
     __tablename__ = 'cart_items'
 
     id = db.Column(db.Integer, primary_key=True)
-    product_id = db.Column(db.Integer, db.ForeignKey('products.id'), nullable=False)
+    product_id = db.Column(db.Integer, db.ForeignKey('products.id'), nullable=False)  # ForeignKey added here
     quantity = db.Column(db.Integer, nullable=False)
     price = db.Column(db.Float, nullable=False)
     cart_id = db.Column(db.Integer, db.ForeignKey('carts.id'), nullable=False)
 
-    # Relationships
-    product = db.relationship('Products', backref='cart_items') 
+    product = db.relationship('Products', backref='cart_items')  # This links to Products
     cart = db.relationship('Cart', back_populates='cart_items')
 
     def __init__(self, product_id, quantity, price, cart_id):
