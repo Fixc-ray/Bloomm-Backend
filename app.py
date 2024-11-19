@@ -6,24 +6,26 @@ from models import db, Product, Company, Category, Customer, Order, Blog, Cart, 
 from dotenv import load_dotenv
 from datetime import datetime
 from mpesa import send_money_to_phone
-# import paypalrestsdk
+import paypalrestsdk
 import requests
 import os
 
 load_dotenv()
 
-# PAYPAL_BASE_URL = "https://sandbox.paypal.com"
-# PAYPAL_CLIENT_ID = os.getenv("PAYPAL_CLIENT_ID")
-# PAYPAL_CLIENT_SECRET = os.getenv("PAYPAL_CLIENT_SECRET")
+PAYPAL_BASE_URL = "https://sandbox.paypal.com"
+PAYPAL_CLIENT_ID = os.getenv("PAYPAL_CLIENT_ID")
+PAYPAL_CLIENT_SECRET = os.getenv("PAYPAL_CLIENT_SECRET")
 
-# if not PAYPAL_CLIENT_ID or not PAYPAL_CLIENT_SECRET:
-#     raise ValueError("PayPal Client ID and Secret are not set!")
-# 
-# paypalrestsdk.configure({
-#     "mode": "sandbox",  
-#     "client_id": PAYPAL_CLIENT_ID,
-#     "client_secret": PAYPAL_CLIENT_SECRET
-# })
+if not PAYPAL_CLIENT_ID or not PAYPAL_CLIENT_SECRET:
+    raise ValueError("PayPal Client ID and Secret are not set!")
+
+paypalrestsdk.configure({
+    "mode": "sandbox",  
+    "client_id": os.getenv("PAYPAL_CLIENT_ID"),
+    "client_secret": os.getenv("PAYPAL_CLIENT_SECRET")
+    # "client_id": PAYPAL_CLIENT_ID,
+    # "client_secret": PAYPAL_CLIENT_SECRET
+})
 
 
 app = Flask(__name__)
@@ -117,7 +119,7 @@ def create_product():
         return jsonify({"error": "Database error: " + str(e)}), 500
 
 
-@app.route("/products/<int:product_id>rate", methods=["POST"])
+@app.route("/products/<int:product_id>/rate", methods=["POST"])
 def rate_product(product_id):
     product = Product.query.get(product_id)
     if not product:
@@ -220,13 +222,13 @@ def get_blogs():
     return jsonify({"blogs": blog_list}), 200
 
 
-@app.route('/blogs', methods=['POST'])
+@app.route("/blogs", methods=["POST"])
 def create_blog():
     try:
         data = request.get_json()
-        title = data.get('title')
-        content = data.get('content')
-        date_posted = data.get('date_posted', datetime.utcnow())
+        title = data.get("title")
+        content = data.get("content")
+        date_posted = data.get("date_posted", datetime.utcnow())
 
         if isinstance(date_posted, str):
             date_posted = datetime.fromisoformat(date_posted)
@@ -252,13 +254,13 @@ def create_blog():
         return jsonify({"error": "Database error: " + str(e)}), 500
 
 
-@app.route('/pay/mpesa', methods=['POST'])
+@app.route("/pay/mpesa", methods=["POST"])
 def payMpesa():
     data = request.get_json()
     print("Received data:", data)  
 
-    phone_number = data.get('phone_number')
-    amount = data.get('amount')
+    phone_number = data.get("phone_number")
+    amount = data.get("amount")
 
     if not phone_number or not amount:
         return jsonify({"error": "Missing phone number or amount"}), 400
@@ -313,11 +315,11 @@ def payPaypal():
         return jsonify({"error": payment.error})
 
 
-@app.route('/callback', methods=['POST'])
+@app.route("/callback", methods=["POST"])
 def callback():
     """Handle callback from M-Pesa."""
     data = request.get_json()
-    print('Callback received:', data)
+    print("Callback received:", data)
     return jsonify({"ResultCode": 0, "ResultDesc": "Success"})
 
 

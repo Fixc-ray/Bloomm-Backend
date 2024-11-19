@@ -1,4 +1,4 @@
-from models import db, Customer, Company, Category, Product, Order
+from models import db,Company, Category, Product
 from app import app
 
 with app.app_context():
