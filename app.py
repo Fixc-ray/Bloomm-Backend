@@ -263,12 +263,15 @@ def create_cart():
     return jsonify({'message': 'Cart created successfully', 'cart_id': new_cart.id}), 201
 
 
-@app.route('cart/<int:cart_id>', methods=['GET'])
-def get_cart(customer_id):
+@app.route('/cart', methods=['GET'])
+@jwt_required()
+def get_cart():
+    customer_id = get_jwt_identity()
+
     cart = Cart.query.filter_by(user_id=customer_id).first()
     if cart:
         cart_items = CartItem.query.filter_by(cart_id=cart.id).all()
-        return [
+        cart_items_data = [
             {
                 "product_id": item.product_id,
                 "product_name": item.product.product_name,
@@ -279,22 +282,23 @@ def get_cart(customer_id):
             }
             for item in cart_items
         ]
-    return []
+        return jsonify({"cart_items": cart_items_data}), 200
+
+    return jsonify({"message": "Cart is empty"}), 200
 
 
-@app.route('/cart_id', methods=['POST'])
+@app.route('/cart/items', methods=['POST'])
 @jwt_required()
 def add_to_cart():
     try:
+        customer_id = get_jwt_identity()
+        
         data = request.json
         product_id = data.get('product_id')
         quantity = data.get('quantity')
+        
         if not product_id or not quantity or quantity <= 0:
             return jsonify({"error": "Invalid item data"}), 400
-
-        customer_id = get_jwt_identity()
-        if not customer_id:
-            return jsonify({"error": "Customer not found"}), 404
 
         customer = Customer.query.get(customer_id)
         product = Products.query.get(product_id)
@@ -309,6 +313,7 @@ def add_to_cart():
             cart = Cart(user_id=customer_id)
             db.session.add(cart)
             db.session.commit()
+
         cart_item = CartItem.query.filter_by(cart_id=cart.id, product_id=product_id).first()
 
         if cart_item:
@@ -323,10 +328,12 @@ def add_to_cart():
             cart_item.photo_url = product.photo_url
 
             db.session.add(cart_item)
+        
         db.session.commit()
+
         return jsonify({
             "message": "Item added to cart",
-            "cart": get_cart(customer_id) 
+            "cart": get_cart(customer_id)
         }), 200
 
     except Exception as e:
@@ -530,6 +537,7 @@ def payPaypal():
         print("Payment created successfully")
         for link in payment.links:
             if link.rel == "approval_url":
+                # Redirect the user to the approval URL
                 return redirect(link.href)
     else:
         return jsonify({"error": payment.error})
