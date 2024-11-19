@@ -51,7 +51,7 @@ class Products(db.Model):
     rating_count = db.Column(db.Integer, default=0)
     total_rating = db.Column(db.Float, default=0.0)
 
-    
+
 class Order(db.Model):
     __tablename__ = 'orders'
     
@@ -77,22 +77,29 @@ class Blog(db.Model):
 
 class Cart(db.Model):
     __tablename__ = 'carts'
+
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, nullable=False)
-    items = db.relationship('CartItem', backref='cart', lazy=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('customers.id'), nullable=False)
+    customer = db.relationship('Customer', backref='carts')
     
+    cart_items = db.relationship('CartItem', back_populates='cart')
+
     def __init__(self, user_id):
         self.user_id = user_id
 
 
 class CartItem(db.Model):
     __tablename__ = 'cart_items'
+
     id = db.Column(db.Integer, primary_key=True)
-    product_id = db.Column(db.Integer, nullable=False)
+    product_id = db.Column(db.Integer, db.ForeignKey('products.id'), nullable=False)  # ForeignKey added here
     quantity = db.Column(db.Integer, nullable=False)
     price = db.Column(db.Float, nullable=False)
     cart_id = db.Column(db.Integer, db.ForeignKey('carts.id'), nullable=False)
-    
+
+    product = db.relationship('Products', backref='cart_items')  # This links to Products
+    cart = db.relationship('Cart', back_populates='cart_items')
+
     def __init__(self, product_id, quantity, price, cart_id):
         self.product_id = product_id
         self.quantity = quantity

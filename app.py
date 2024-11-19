@@ -110,7 +110,8 @@ def login():
         if not user or not check_password_hash(user.password, password):
             return jsonify({'message': 'Invalid credentials'}), 401
 
-        access_token = create_access_token(identity=user.id)
+        access_token = create_access_token(identity=str(user.id))
+
         return jsonify({
             'message': 'Login successful',
             'access_token': access_token,
@@ -123,8 +124,8 @@ def login():
         print("Error occurred:", str(e))
         traceback.print_exc()
         return jsonify({'message': 'Internal server error'}), 500
-    
 
+    
 @app.route('/customers', methods=['GET'])
 def get_customers():
     try:
@@ -146,6 +147,7 @@ def get_customers():
     except Exception as e:
         traceback.print_exc()
         return jsonify({"error": "Failed to fetch customers: " + str(e)}), 500
+
 
 @app.route('/products', methods=['POST'])
 def create_product():
@@ -245,62 +247,91 @@ def update_product(product_id):
     return jsonify({"message": "Product updated successfully"}), 200
 
 
-@app.route('/cart', methods=['GET'])
-def get_cart():
-    """Return the current cart contents."""
-    customer_id = 1  
-    cart = Cart.query.filter_by(customer_id=customer_id).first()
-    if not cart:
-        return jsonify({"cart": []})
-
-    cart_items = [{
-        'id': item.product.id,
-        'name': item.product.product_name,
-        'price': item.product.price,
-        'quantity': item.quantity
-    } for item in cart.items]
-
-    return jsonify({"cart": cart_items})
-
-
 @app.route('/cart', methods=['POST'])
-def add_to_cart():
-    """Add an item to the cart."""
-    data = request.json
-    product_id = data.get('id')
-    quantity = data.get('quantity')
+def create_cart():
+    data = request.get_json() 
+    user_id = data.get('user_id')
 
-    if not product_id or not quantity or quantity <= 0:
-        return jsonify({"error": "Invalid item data"}), 400
+    if user_id is None:
+        return jsonify({'error': 'User ID is required'}), 400
 
-    # Get the current customer (this is assumed to come from the session or authentication)
-    customer_id = 1  # This should come from session or user context
-    customer = Customer.query.get(customer_id)
-    if not customer:
-        return jsonify({"error": "Customer not found"}), 404
+    new_cart = Cart(user_id=user_id)
 
-    # Find the product
-    product = Products.query.get(product_id)
-    if not product:
-        return jsonify({"error": "Product not found"}), 404
-
-    # Get or create the cart for the customer
-    cart = Cart.query.filter_by(customer_id=customer_id).first()
-    if not cart:
-        cart = Cart(customer_id=customer_id)
-        db.session.add(cart)
-        db.session.commit()
-
-    # Check if item already exists in the cart
-    cart_item = CartItem.query.filter_by(cart_id=cart.id, product_id=product_id).first()
-    if cart_item:
-        cart_item.quantity += quantity
-    else:
-        cart_item = CartItem(cart_id=cart.id, product_id=product_id, quantity=quantity)
-        db.session.add(cart_item)
-
+    db.session.add(new_cart)
     db.session.commit()
-    return jsonify({"message": "Item added to cart", "cart": get_cart()})
+
+    return jsonify({'message': 'Cart created successfully', 'cart_id': new_cart.id}), 201
+
+
+@app.route('cart/<int:cart_id>', methods=['GET'])
+def get_cart(customer_id):
+    cart = Cart.query.filter_by(user_id=customer_id).first()
+    if cart:
+        cart_items = CartItem.query.filter_by(cart_id=cart.id).all()
+        return [
+            {
+                "product_id": item.product_id,
+                "product_name": item.product.product_name,
+                "quantity": item.quantity,
+                "price": item.price,
+                "total": item.total(),
+                "photo_url": item.photo_url
+            }
+            for item in cart_items
+        ]
+    return []
+
+
+@app.route('/cart_id', methods=['POST'])
+@jwt_required()
+def add_to_cart():
+    try:
+        data = request.json
+        product_id = data.get('product_id')
+        quantity = data.get('quantity')
+        if not product_id or not quantity or quantity <= 0:
+            return jsonify({"error": "Invalid item data"}), 400
+
+        customer_id = get_jwt_identity()
+        if not customer_id:
+            return jsonify({"error": "Customer not found"}), 404
+
+        customer = Customer.query.get(customer_id)
+        product = Products.query.get(product_id)
+
+        if not customer:
+            return jsonify({"error": "Customer not found"}), 404
+        if not product:
+            return jsonify({"error": "Product not found"}), 404
+
+        cart = Cart.query.filter_by(user_id=customer_id).first()
+        if not cart:
+            cart = Cart(user_id=customer_id)
+            db.session.add(cart)
+            db.session.commit()
+        cart_item = CartItem.query.filter_by(cart_id=cart.id, product_id=product_id).first()
+
+        if cart_item:
+            cart_item.quantity += quantity
+        else:
+            cart_item = CartItem(
+                product_id=product_id,
+                quantity=quantity,
+                price=product.price,
+                cart_id=cart.id
+            )
+            cart_item.photo_url = product.photo_url
+
+            db.session.add(cart_item)
+        db.session.commit()
+        return jsonify({
+            "message": "Item added to cart",
+            "cart": get_cart(customer_id) 
+        }), 200
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": f"An error occurred: {str(e)}"}), 500
 
 
 @app.route('/cart/<int:item_id>', methods=['PUT'])
@@ -334,8 +365,8 @@ def remove_from_cart(item_id):
 @app.route('/cart/clear', methods=['DELETE'])
 def clear_cart():
     """Clear all items from the cart."""
-    # Clear all items from the cart
-    customer_id = 1  # Assume customer_id is retrieved from session or context
+    
+    customer_id = 1 
     cart = Cart.query.filter_by(customer_id=customer_id).first()
     if cart:
         db.session.delete(cart)
