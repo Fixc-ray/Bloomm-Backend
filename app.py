@@ -248,8 +248,7 @@ def update_product(product_id):
 @app.route('/cart', methods=['GET'])
 def get_cart():
     """Return the current cart contents."""
-    # Get the current user (you would typically fetch this from session or authentication)
-    customer_id = 1  # Assume this is coming from the authenticated user
+    customer_id = 1  
     cart = Cart.query.filter_by(customer_id=customer_id).first()
     if not cart:
         return jsonify({"cart": []})
