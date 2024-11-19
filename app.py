@@ -1,11 +1,33 @@
-from flask import Flask, request, jsonify, render_template, redirect
+from flask import Flask, request, jsonify, render_template, redirect, request, sessions
 from flask_migrate import Migrate
-from models import db, Product, Company, Category, Customer, Order, Blog
+from flask_session import Session
+from flask_cors import CORS
+from models import db, Product, Company, Category, Customer, Order, Blog, Cart, CartItem
+from dotenv import load_dotenv
 from datetime import datetime
-import paypalrestsdk
+from mpesa import send_money_to_phone
+# import paypalrestsdk
+import requests
+import os
+
+load_dotenv()
+
+# PAYPAL_BASE_URL = "https://sandbox.paypal.com"
+# PAYPAL_CLIENT_ID = os.getenv("PAYPAL_CLIENT_ID")
+# PAYPAL_CLIENT_SECRET = os.getenv("PAYPAL_CLIENT_SECRET")
+
+# if not PAYPAL_CLIENT_ID or not PAYPAL_CLIENT_SECRET:
+#     raise ValueError("PayPal Client ID and Secret are not set!")
+# 
+# paypalrestsdk.configure({
+#     "mode": "sandbox",  
+#     "client_id": PAYPAL_CLIENT_ID,
+#     "client_secret": PAYPAL_CLIENT_SECRET
+# })
 
 
 app = Flask(__name__)
+CORS(app)
 app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///beauty.db"
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 db.init_app(app)
@@ -16,7 +38,7 @@ def index():
     return render_template("home.html")
 
 
-@app.route('/products', methods=['GET'])
+@app.route("/products", methods=["GET"])
 def get_products():
     products = Product.query.all()
     product_list = []
@@ -95,21 +117,52 @@ def create_product():
         return jsonify({"error": "Database error: " + str(e)}), 500
 
 
-@app.route('/products/<int:product_id>', methods=['PUT'])
+@app.route("/products/<int:product_id>rate", methods=["POST"])
+def rate_product(product_id):
+    product = Product.query.get(product_id)
+    if not product:
+        return jsonify({"error": "Product not found"}), 404
+    
+    data = request.get_json()
+    new_rating = data.get("rating")
+    
+    if not (0 <= new_rating <= 5):
+        return jsonify({"error": "Rating must be between 0 and 5"}), 400
+    
+    product.total_rating += new_rating
+    product.rating_count += 1 
+    
+    product.rating = product.total_rating / product.rating_count
+    
+    try:
+        db.session.commit()
+        return jsonify({"message": "Product rated successfully", "product": {
+            "id": product.id,
+            "product_name": product.product_name,
+            "average_rating": product.rating,
+            "total_rating": product.total_rating
+        }
+                        }), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": f"Failed to update rating:{str(e)}"}), 500
+
+
+@app.route("/products/<int:product_id>", methods=["PUT"])
 def update_product(product_id):
     product = Product.query.get(product_id)
     if not product:
         return jsonify({"error": "Product not found"}), 404
 
     data = request.get_json()
-    product.product_name = data.get('product_name', product.product_name)
-    product.product_model = data.get('product_model', product.product_model)
-    product.price = data.get('price', product.price)
-    product.category_id = data.get('category_id', product.category_id)
-    product.company_id = data.get('company_id', product.company_id)
-    product.description = data.get('description', product.description)
-    product.rating = data.get('rating', product.rating)
-    product.photo_url = data.get('photo_url', product.photo_url)
+    product.product_name = data.get("product_name", product.product_name)
+    product.product_model = data.get("product_model", product.product_model)
+    product.price = data.get("price", product.price)
+    product.category_id = data.get("category_id", product.category_id)
+    product.company_id = data.get("company_id", product.company_id)
+    product.description = data.get("description", product.description)
+    product.rating = data.get("rating", product.rating)
+    product.photo_url = data.get("photo_url", product.photo_url)
 
     db.session.commit()
     return jsonify({"message": "Product updated successfully"}), 200
@@ -152,7 +205,7 @@ def create_order():
         return jsonify({"error": "Database error: " + str(e)}), 500
 
 
-@app.route('/blogs', methods=['GET'])
+@app.route("/blogs", methods=["GET"])
 def get_blogs():
     blogs = Blog.query.all()
     blog_list = []
@@ -167,54 +220,62 @@ def get_blogs():
     return jsonify({"blogs": blog_list}), 200
 
 
-@app.route("/blogs", methods=["POST"])
+@app.route('/blogs', methods=['POST'])
 def create_blog():
-    data = request.get_json()
-
-    new_blog = Blog(
-        title=data.get("title"),
-        content=data.get("content"),
-        author=data.get("author"),
-        date_posted=data.get("date_posted")
-    )
-
-    db.session.add(new_blog)
-    db.session.commit()
-    return jsonify({"message":"Blog created successfully"}), 201
-
-
-@app.route('/products/<int:product_id>rate', methods=['POST'])
-def rate_product(product_id):
-    product = Product.query.get(product_id)
-    if not product:
-        return jsonify({"error": "Product not found"}), 404
-    
-    data = request.get_json()
-    new_rating = data.get('rating')
-    
-    if not (0 <= new_rating <= 5):
-        return jsonify({"error": "Rating must be between 0 and 5"}), 400
-    
-    product.total_rating += new_rating
-    product.rating_count += 1 
-    
-    product.rating = product.total_rating / product.rating_count
-    
     try:
+        data = request.get_json()
+        title = data.get('title')
+        content = data.get('content')
+        date_posted = data.get('date_posted', datetime.utcnow())
+
+        if isinstance(date_posted, str):
+            date_posted = datetime.fromisoformat(date_posted)
+
+        if not title or not content:
+            return jsonify({"error": "Missing required fields"}), 400
+        
+        new_blog = Blog(
+            title=title,
+            content=content,
+            date_posted=date_posted
+        )
+        
+        db.session.add(new_blog)
         db.session.commit()
-        return jsonify({"message": "Product rated successfully", "product": {
-            "id": product.id,
-            "product_name": product.product_name,
-            "average_rating": product.rating,
-            "total_rating": product.total_rating
-        }
-                        }), 200
+        return jsonify({"message": "Blog created successfully", "blog": {
+            "title": new_blog.title,
+            "content": new_blog.content,
+            "date_posted": new_blog.date_posted
+        }}), 201
     except Exception as e:
         db.session.rollback()
-        return jsonify({"error": f"Failed to update rating:{str(e)}"}), 500
+        return jsonify({"error": "Database error: " + str(e)}), 500
 
 
-@app.route('/pay/paypal', methods=['GET'])
+@app.route('/pay/mpesa', methods=['POST'])
+def payMpesa():
+    data = request.get_json()
+    print("Received data:", data)  
+
+    phone_number = data.get('phone_number')
+    amount = data.get('amount')
+
+    if not phone_number or not amount:
+        return jsonify({"error": "Missing phone number or amount"}), 400
+
+    try:
+        response = send_money_to_phone(phone_number, amount)
+        print("M-Pesa response:", response)  
+        return jsonify(response), 200
+    except request.exceptions.RequestException as e:
+        print("Request exception:", e)  
+        return jsonify({"error": "Payment failed", "details": str(e)}), 500
+    except Exception as e:
+        print("General exception:", e)  
+        return jsonify({"error": "An unexpected error occurred", "details": str(e)}), 500
+
+
+@app.route("/pay/paypal", methods=["GET"])
 def payPaypal():
     payment = paypalrestsdk.Payment({
         "intent": "sale",
@@ -252,10 +313,18 @@ def payPaypal():
         return jsonify({"error": payment.error})
 
 
-@app.route('/payment/execute', methods=['GET'])
+@app.route('/callback', methods=['POST'])
+def callback():
+    """Handle callback from M-Pesa."""
+    data = request.get_json()
+    print('Callback received:', data)
+    return jsonify({"ResultCode": 0, "ResultDesc": "Success"})
+
+
+@app.route("/payment/execute", methods=["GET"])
 def execute_payment():
-    payment_id = request.args.get('paymentId')
-    payer_id = request.args.get('PayerID')
+    payment_id = request.args.get("paymentId")
+    payer_id = request.args.get("PayerID")
 
     payment = paypalrestsdk.Payment.find(payment_id)
 
