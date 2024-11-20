@@ -1,6 +1,6 @@
-from flask import Flask, request, jsonify, render_template, redirect, request, sessions
+from flask import Flask, request, jsonify, render_template, redirect, sessions
 from flask_migrate import Migrate
-from flask_session import Session
+# from flask_session import Session
 from flask_cors import CORS
 from models import db, Product, Company, Category, Customer, Order, Blog, Cart, CartItem
 from dotenv import load_dotenv
@@ -23,8 +23,6 @@ paypalrestsdk.configure({
     "mode": "sandbox",  
     "client_id": os.getenv("PAYPAL_CLIENT_ID"),
     "client_secret": os.getenv("PAYPAL_CLIENT_SECRET")
-    # "client_id": PAYPAL_CLIENT_ID,
-    # "client_secret": PAYPAL_CLIENT_SECRET
 })
 
 
