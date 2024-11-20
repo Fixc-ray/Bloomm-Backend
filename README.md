@@ -1,19 +1,8 @@
 <div style= "text-align: center;">
 <img src="Bloom-Beauty.png" alt="Bloom Beauty Logo" width="210" height="210"
-style = "display: inline-block; 
-      opacity: 0; 
-      animation: fadeIn 4s forwards;"></img>
+></img>
 </div>
 
-<!-- <style>
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-} -->
 
 ![Contributors](https://img.shields.io/github/contributors/Fixc-ray/Bloomm-Backend)
 ![Forks](https://img.shields.io/github/forks/Fixc-ray/Bloomm-Backend)
