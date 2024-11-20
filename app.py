@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, render_template, redirect, sessions
+from flask import Flask, request, jsonify, render_template, redirect
 from flask_migrate import Migrate
 # from flask_session import Session
 from flask_cors import CORS
@@ -256,7 +256,7 @@ def create_blog():
 def payMpesa():
     data = request.get_json()
     print("Received data:", data)  
-
+ #to debug later
     phone_number = data.get("phone_number")
     amount = data.get("amount")
 
@@ -310,7 +310,8 @@ def payPaypal():
             if link.rel == "approval_url":
                 return redirect(link.href)
     else:
-        return jsonify({"error": payment.error})
+        print("Error creating PayPal payment:", payment.error)
+        return jsonify({"error": "Failed to create payment. Please try again."}), 500
 
 
 @app.route("/callback", methods=["POST"])
@@ -326,12 +327,16 @@ def execute_payment():
     payment_id = request.args.get("paymentId")
     payer_id = request.args.get("PayerID")
 
+    if not payment_id or not payer_id:
+        return jsonify({"error": "Missing paymentId or PayerID"}), 400
+    
     payment = paypalrestsdk.Payment.find(payment_id)
 
     if payment.execute({"payer_id": payer_id}):
         return "Payment executed successfully"
     else:
-        return jsonify({"error": payment.error})
+        print("Error executing PayPal payment:", payment.error)
+        return jsonify({"error": payment.error}), 500
     
 
 
