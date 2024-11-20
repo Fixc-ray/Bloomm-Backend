@@ -23,7 +23,7 @@ class Company(db.Model):
     
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(50), unique=True, nullable=False)
-    products = db.relationship('Products', backref='company', lazy=True)  # Corrected to 'Products'
+    products = db.relationship('Products', backref='company', lazy=True) 
 
 
 class Category(db.Model):
@@ -96,15 +96,18 @@ class CartItem(db.Model):
     quantity = db.Column(db.Integer, nullable=False)
     price = db.Column(db.Float, nullable=False)
     cart_id = db.Column(db.Integer, db.ForeignKey('carts.id'), nullable=False)
-
+    
+    photo_url = db.Column(db.String, nullable=True)
+    
     product = db.relationship('Products', backref='cart_items')  # This links to Products
     cart = db.relationship('Cart', back_populates='cart_items')
 
-    def __init__(self, product_id, quantity, price, cart_id):
+    def __init__(self, product_id, quantity, price, cart_id, photo_url=None):
         self.product_id = product_id
         self.quantity = quantity
         self.price = price
         self.cart_id = cart_id
+        self.photo_url = photo_url
 
     def total(self):
         return self.price * self.quantity
