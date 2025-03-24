@@ -1,33 +1,36 @@
 from flask import Flask, request, jsonify, render_template, redirect
 from flask_cors import CORS
-from models import db, Products, Company, Category, Customer, Order, Blog, Cart, CartItem
+from models import db, Product, Company, Category, Customer, Blog, Cart, CartItem
 from flask_migrate import Migrate
 from werkzeug.security import generate_password_hash, check_password_hash
-from flask_jwt_extended import JWTManager, create_access_token
+from flask_jwt_extended import (
+    JWTManager, create_access_token, jwt_required, get_jwt_identity
+)
 import traceback
 from mpesa import send_money_to_phone
 import requests
 import paypalrestsdk
 from dotenv import load_dotenv
-load_dotenv()
-from flask_jwt_extended import (
-    JWTManager, create_access_token, jwt_required, get_jwt_identity
-)
-from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime
 import os
 
+load_dotenv()  # Make sure to call load_dotenv() after importing
 
+# Initialize Flask app
 app = Flask(__name__)
-CORS(app)  # Enable CORS for all routes and origins
+CORS(app)
+
+# App Configuration
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///beauty.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['JWT_SECRET_KEY'] = '972005679905596ccd4ed314bc98c944b88006d2bf5b229b4b04ee41b16159d0076ae05d861cf5b2d5bcc6f5057965096bb96659705c64738cf404737e6ac26b3f2422a89c12bd7d939163c20db680db25712b75de060dd668319ed57ef56c06172c82913abc4554fbe8107b860e23bcb65097b302200500c7341a720076e62ecf562bec94a8b75941f62c1faa038b2bbcd1896a9f3e42582b86e3dfe83ddc6bd103fc79229f5cb294742d47c9c3a15ebb5e7dea2b9deaddb174772595808b5abc704187316ac8a74b2adb451c3c1f0292126eb28ecd7ecc1c2f6c59177f3e8b0f115b4d027a9d386f131a803c6b5958e99d911b0cc730d0cd0e4bbe523462b4bf994225883c97589d6e8b298533a4e3f633089986c13035deafe9f865bfd0d4'
 
+# Initialize extensions
 db.init_app(app)
 migrate = Migrate(app, db)
 jwt = JWTManager(app)
 
+# ------------------ ROUTES ------------------
 
 @app.route('/', methods=['GET'])
 def home():
@@ -42,15 +45,15 @@ def register():
         last_name = data.get('last_name')
         password = data.get('password')
         email = data.get('email')
-        address = data.get('address')  
+        address = data.get('address')
         phone_number = data.get('phone_number')
 
         if not first_name or not password or not email or not address:
             return jsonify({'message': 'All fields are required'}), 400
 
+        # Check for existing user by first name or email
         if Customer.query.filter_by(first_name=first_name).first():
             return jsonify({'message': 'First name already taken'}), 400
-
         if Customer.query.filter_by(email=email).first():
             return jsonify({'message': 'Email already exists'}), 400
 
@@ -69,12 +72,13 @@ def register():
         db.session.commit()
 
         return jsonify({'message': 'Customer registered successfully'}), 201
+
     except Exception as e:
         print("Error occurred:", str(e))
         traceback.print_exc()
         return jsonify({'message': 'Internal server error'}), 500
-    
-    
+
+
 @app.route('/customers', methods=['POST'])
 def create_customer():
     data = request.get_json()
@@ -93,25 +97,29 @@ def create_customer():
     except Exception as e:
         db.session.rollback()
         return jsonify({"error": "Database error: " + str(e)}), 500
-    
-    
+
+
 @app.route('/login', methods=['POST'])
 def login():
     try:
         data = request.get_json()
+        if not data:
+            return jsonify({'message': 'Invalid JSON payload'}), 400
+
         first_name = data.get('first_name')
         password = data.get('password')
 
         if not first_name or not password:
-            return jsonify({'message': 'Both fields are required'}), 400
+            return jsonify({'message': 'Both "first_name" and "password" fields are required'}), 400
 
         user = Customer.query.filter_by(first_name=first_name).first()
 
-        if not user or not check_password_hash(user.password, password):
+        if not user:
+            return jsonify({'message': 'User not found'}), 404
+        if not check_password_hash(user.password, password):
             return jsonify({'message': 'Invalid credentials'}), 401
 
         access_token = create_access_token(identity=str(user.id))
-
         return jsonify({
             'message': 'Login successful',
             'access_token': access_token,
@@ -120,27 +128,24 @@ def login():
                 'email': user.email
             }
         }), 200
+
     except Exception as e:
         print("Error occurred:", str(e))
         traceback.print_exc()
         return jsonify({'message': 'Internal server error'}), 500
 
-    
+
 @app.route('/customers', methods=['GET'])
 def get_customers():
     try:
-        customers = Customer.query.all() 
-        customers_list = []
-
-        for customer in customers:
-            customer_data = {
-                "first_name": customer.first_name,
-                "last_name": customer.last_name,
-                "email": customer.email,
-                "address": customer.address,
-                "phone_number": customer.phone_number
-            }
-            customers_list.append(customer_data)
+        customers = Customer.query.all()
+        customers_list = [{
+            "first_name": customer.first_name,
+            "last_name": customer.last_name,
+            "email": customer.email,
+            "address": customer.address,
+            "phone_number": customer.phone_number
+        } for customer in customers]
 
         return jsonify({"customers": customers_list}), 200
 
@@ -174,12 +179,12 @@ def create_product():
         return jsonify({"error": "Invalid category ID"}), 400
 
     try:
-        new_product = Products(
+        new_product = Product(
             product_name=product_name,
             product_model=product_model,
             price=price,
             category_id=category_id,
-            description=description, 
+            description=description,
             rating=rating,
             photo_url=photo_url,
             company_id=company.id
@@ -195,7 +200,7 @@ def create_product():
                 "product_model": new_product.product_model,
                 "price": new_product.price,
                 "category_id": new_product.category_id,
-                "description": new_product.description, 
+                "description": new_product.description,
                 "rating": new_product.rating,
                 "photo_url": new_product.photo_url,
                 "company_name": company.name
@@ -209,27 +214,24 @@ def create_product():
 
 @app.route('/products', methods=['GET'])
 def get_products():
-    products = Products.query.all()
-    product_list = []
-    for product in products:
-        product_data = {
-            "id": product.id,
-            "product_name": product.product_name,
-            "product_model": product.product_model,
-            "price": product.price,
-            "category_id": product.category_id,
-            "description": product.description,
-            "rating": product.rating,
-            "photo_url": product.photo_url,
-            "company_name": product.company.name
-        }
-        product_list.append(product_data)
+    products = Product.query.all()
+    product_list = [{
+        "id": product.id,
+        "product_name": product.product_name,
+        "product_model": product.product_model,
+        "price": product.price,
+        "category_id": product.category_id,
+        "description": product.description,
+        "rating": product.rating,
+        "photo_url": product.photo_url,
+        "company_name": product.company.name
+    } for product in products]
     return jsonify({"products": product_list}), 200
 
 
 @app.route('/products/<int:product_id>', methods=['PUT'])
 def update_product(product_id):
-    product = Products.query.get(product_id)
+    product = Product.query.get(product_id)
     if not product:
         return jsonify({"error": "Product not found"}), 404
 
@@ -246,84 +248,98 @@ def update_product(product_id):
     db.session.commit()
     return jsonify({"message": "Product updated successfully"}), 200
 
+
 @app.route('/cart', methods=['GET'])
 @jwt_required()
 def get_cart():
-    customer_id = get_jwt_identity()
-    cart = Cart.query.filter_by(user_id=customer_id).first()
-    
-    if cart:
+    try:
+        customer_id = get_jwt_identity()
+        cart = Cart.query.filter_by(customer_id=customer_id).first()
+        if not cart:
+            return jsonify({'message': 'Cart not found'}), 404
+
         cart_items = CartItem.query.filter_by(cart_id=cart.id).all()
-        return jsonify([
-            {
-                "product_id": item.product_id,
-                "product_name": item.product.product_name,
-                "quantity": item.quantity,
-                "price": item.price,
-                "total": item.total(),
-                "photo_url": item.photo_url
-            }
-            for item in cart_items
-        ]), 200
-    
-    return jsonify([]), 404
+        if not cart_items:
+            return jsonify({'message': 'Cart is empty', 'items': []}), 200
+
+        response = {
+            'cart_id': cart.id,
+            'customer_id': cart.customer_id,
+            'items': [{
+                'product_id': item.product_id,
+                'product_name': item.product.product_name,
+                'quantity': item.quantity,
+                'price': item.price,
+                'total': item.price * item.quantity,
+                'photo_url': item.photo_url
+            } for item in cart_items]
+        }
+        return jsonify(response), 200
+
+    except Exception as e:
+        print("Error occurred:", str(e))
+        traceback.print_exc()
+        return jsonify({'message': 'Internal server error'}), 500
 
 
-@app.route('/cart_id', methods=['POST'])
+@app.route('/cart', methods=['POST'])
 @jwt_required()
 def add_to_cart():
     try:
-        data = request.json
+        data = request.get_json()
         product_id = data.get('product_id')
-        quantity = data.get('quantity')
-        if not product_id or not quantity or quantity <= 0:
-            return jsonify({"error": "Invalid item data"}), 400
-
+        quantity = data.get('quantity', 1)
+        
+        if not product_id or quantity <= 0:
+            return jsonify({"error": "Invalid product ID or quantity"}), 400
+        
         customer_id = get_jwt_identity()
-        if not customer_id:
-            return jsonify({"error": "Customer not found"}), 404
-
-        customer = Customer.query.get(customer_id)
-        product = Products.query.get(product_id)
-
-        if not customer:
-            return jsonify({"error": "Customer not found"}), 404
+        product = Product.query.get(product_id)
         if not product:
             return jsonify({"error": "Product not found"}), 404
-
-        cart = Cart.query.filter_by(user_id=customer_id).first()
+        
+        cart = Cart.query.filter_by(customer_id=customer_id).first()
         if not cart:
-            cart = Cart(user_id=customer_id)
+            cart = Cart(customer_id=customer_id)
             db.session.add(cart)
             db.session.commit()
-        cart_item = CartItem.query.filter_by(cart_id=cart.id, product_id=product_id).first()
 
+        cart_item = CartItem.query.filter_by(cart_id=cart.id, product_id=product_id).first()
         if cart_item:
             cart_item.quantity += quantity
         else:
             cart_item = CartItem(
-                product_id=product_id,
+                cart_id=cart.id,
+                product_id=product.id,
+                product_name=product.product_name,
                 quantity=quantity,
-                price=product.price,
-                cart_id=cart.id
+                price=product.price
             )
-            cart_item.photo_url = product.photo_url
-
             db.session.add(cart_item)
+        
         db.session.commit()
+        
         return jsonify({
             "message": "Item added to cart",
-            "cart": get_cart(customer_id) 
+            "cart": {
+                "items": [{
+                    "product_id": item.product_id,
+                    "product_name": item.product_name,
+                    "quantity": item.quantity,
+                    "price": item.price,
+                    "total": item.price * item.quantity
+                } for item in cart.items]
+            }
         }), 200
-
+        
     except Exception as e:
         db.session.rollback()
         return jsonify({"error": f"An error occurred: {str(e)}"}), 500
 
+
 @app.route('/cart/<int:item_id>', methods=['PUT'])
 @jwt_required()
 def update_cart_item(item_id):
-    """Update the quantity of an item in the cart for the logged-in user."""
     customer_id = get_jwt_identity()
     quantity = request.json.get('quantity')
     
@@ -331,32 +347,39 @@ def update_cart_item(item_id):
         return jsonify({"error": "Invalid quantity"}), 400
 
     cart_item = CartItem.query.get(item_id)
-    if not cart_item or cart_item.cart.user_id != customer_id:
+    if not cart_item or cart_item.cart.customer_id != customer_id:
         return jsonify({"error": "Item not found in your cart"}), 404
 
     cart_item.quantity = quantity
     db.session.commit()
-    return jsonify({"message": "Item updated", "cart": get_cart()}), 200
+    return jsonify({
+        "message": "Item updated",
+        "cart": get_cart()
+    }), 200
 
 
 @app.route('/cart/<int:item_id>', methods=['DELETE'])
+@jwt_required()
 def remove_from_cart(item_id):
-    """Remove an item from the cart."""
+    customer_id = get_jwt_identity()
     cart_item = CartItem.query.get(item_id)
-    if not cart_item:
-        return jsonify({"error": "Item not found in cart"}), 404
+    
+    if not cart_item or cart_item.cart.customer_id != customer_id:
+        return jsonify({"error": "Item not found in your cart"}), 404
 
     db.session.delete(cart_item)
     db.session.commit()
-    return jsonify({"message": "Item removed", "cart": get_cart()})
+    return jsonify({
+        "message": "Item removed",
+        "cart": get_cart()
+    }), 200
+
 
 @app.route('/cart/clear', methods=['DELETE'])
 @jwt_required()
 def clear_cart():
-    """Clear all items from the cart for the logged-in user."""
     customer_id = get_jwt_identity()
-    
-    cart = Cart.query.filter_by(user_id=customer_id).first()
+    cart = Cart.query.filter_by(customer_id=customer_id).first()
     if cart:
         for item in cart.items:
             db.session.delete(item)
@@ -384,7 +407,7 @@ def create_blog():
             title=title,
             content=content,
             date_posted=date_posted,
-            photo_url=photo_url 
+            photo_url=photo_url
         )
         
         db.session.add(new_blog)
@@ -396,32 +419,29 @@ def create_blog():
                 "title": new_blog.title,
                 "content": new_blog.content,
                 "date_posted": new_blog.date_posted,
-                "photo_url": new_blog.photo_url 
+                "photo_url": new_blog.photo_url
             }
         }), 201
     except Exception as e:
         db.session.rollback()
         return jsonify({"error": "Database error: " + str(e)}), 500
 
-    
+
 @app.route('/blogs', methods=['GET'])
 def get_blogs():
     blogs = Blog.query.all()
-    blog_list = []
-    for blog in blogs:
-        blog_data = {
-            "id": blog.id,
-            "title": blog.title,
-            "content": blog.content,
-            "date_posted": blog.date_posted
-        }
-        blog_list.append(blog_data)
+    blog_list = [{
+        "id": blog.id,
+        "title": blog.title,
+        "content": blog.content,
+        "date_posted": blog.date_posted
+    } for blog in blogs]
     return jsonify({"blogs": blog_list}), 200
 
-    
+
 @app.route('/products/<int:product_id>/rate', methods=['POST'])
 def rate_product(product_id):
-    product = Products.query.get(product_id)
+    product = Product.query.get(product_id)
     if not product:
         return jsonify({"error": "Product not found"}), 404
     
@@ -433,7 +453,6 @@ def rate_product(product_id):
     
     product.total_rating += new_rating
     product.rating_count += 1 
-    
     product.rating = product.total_rating / product.rating_count
     
     try:
@@ -443,11 +462,10 @@ def rate_product(product_id):
             "product_name": product.product_name,
             "average_rating": product.rating,
             "total_rating": product.total_rating
-        }
-                        }), 200
+        }}), 200
     except Exception as e:
         db.session.rollback()
-        return jsonify({"error": f"Failed to update rating:{str(e)}"}), 500
+        return jsonify({"error": f"Failed to update rating: {str(e)}"}), 500
 
 
 @app.route('/pay/mpesa', methods=['POST'])
@@ -471,7 +489,7 @@ def payMpesa():
             return jsonify({"error": "M-Pesa response is invalid or empty", "response": response}), 500
 
     except requests.exceptions.RequestException as e:
-        print("Request to M-Pesa failed:", e) 
+        print("Request to M-Pesa failed:", e)
         return jsonify({"error": "Payment failed", "details": str(e)}), 500
     except Exception as e:
         print("General exception:", e)
@@ -480,7 +498,6 @@ def payMpesa():
 
 @app.route('/callback', methods=['POST'])
 def callback():
-    """Handle callback from M-Pesa."""
     data = request.get_json()
     print('Callback received:', data)
     return jsonify({"ResultCode": 0, "ResultDesc": "Success"})
@@ -488,28 +505,27 @@ def callback():
 
 @app.route('/pay/paypal', methods=['GET'])
 def payPaypal():
-    # Create a payment object
     payment = paypalrestsdk.Payment({
         "intent": "sale",
         "payer": {
             "payment_method": "paypal"
         },
         "redirect_urls": {
-            "return_url": "http://localhost:5000/payment/execute",
-            "cancel_url": "http://localhost:5000/"
+            "return_url": "http://127.0.0.1:8080/payment/execute",
+            "cancel_url": "http://127.0.0.1:8080/"
         },
         "transactions": [{
             "item_list": {
                 "items": [{
                     "name": "Cart Items",
                     "sku": "001",
-                    "price": "10.00",  # Replace with cart total price
+                    "price": "10.00",
                     "currency": "USD",
                     "quantity": 1
                 }]
             },
             "amount": {
-                "total": "10.00",  # Replace with cart total price
+                "total": "10.00",
                 "currency": "USD"
             },
             "description": "Payment for items in the cart"
@@ -522,7 +538,8 @@ def payPaypal():
             if link.rel == "approval_url":
                 return redirect(link.href)
     else:
-        return jsonify({"error": payment.error})
+        print("Payment creation failed:", payment.error)
+        return jsonify({"error": payment.error}), 400
 
 
 @app.route('/payment/execute', methods=['GET'])
@@ -530,12 +547,21 @@ def execute_payment():
     payment_id = request.args.get('paymentId')
     payer_id = request.args.get('PayerID')
 
-    payment = paypalrestsdk.Payment.find(payment_id)
+    if not payment_id or not payer_id:
+        return jsonify({"error": "Missing paymentId or PayerID"}), 400
+
+    try:
+        payment = paypalrestsdk.Payment.find(payment_id)
+    except ResourceNotFound as e:
+        print(f"Payment with ID {payment_id} not found: {str(e)}")
+        return jsonify({"error": "Payment not found. Please ensure the payment ID is correct."}), 404
 
     if payment.execute({"payer_id": payer_id}):
+        print("Payment executed successfully")
         return "Payment executed successfully"
     else:
-        return jsonify({"error": payment.error})
+        print("Payment execution failed:", payment.error)
+        return jsonify({"error": payment.error}), 400
 
 
 if __name__ == '__main__':
