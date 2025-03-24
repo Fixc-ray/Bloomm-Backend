@@ -9,7 +9,6 @@ from flask_jwt_extended import (
 import traceback
 from mpesa import send_money_to_phone
 import requests
-import paypalrestsdk
 from dotenv import load_dotenv
 from datetime import datetime
 import os
@@ -501,68 +500,6 @@ def callback():
     data = request.get_json()
     print('Callback received:', data)
     return jsonify({"ResultCode": 0, "ResultDesc": "Success"})
-
-
-@app.route('/pay/paypal', methods=['GET'])
-def payPaypal():
-    payment = paypalrestsdk.Payment({
-        "intent": "sale",
-        "payer": {
-            "payment_method": "paypal"
-        },
-        "redirect_urls": {
-            "return_url": "http://127.0.0.1:8080/payment/execute",
-            "cancel_url": "http://127.0.0.1:8080/"
-        },
-        "transactions": [{
-            "item_list": {
-                "items": [{
-                    "name": "Cart Items",
-                    "sku": "001",
-                    "price": "10.00",
-                    "currency": "USD",
-                    "quantity": 1
-                }]
-            },
-            "amount": {
-                "total": "10.00",
-                "currency": "USD"
-            },
-            "description": "Payment for items in the cart"
-        }]
-    })
-
-    if payment.create():
-        print("Payment created successfully")
-        for link in payment.links:
-            if link.rel == "approval_url":
-                return redirect(link.href)
-    else:
-        print("Payment creation failed:", payment.error)
-        return jsonify({"error": payment.error}), 400
-
-
-@app.route('/payment/execute', methods=['GET'])
-def execute_payment():
-    payment_id = request.args.get('paymentId')
-    payer_id = request.args.get('PayerID')
-
-    if not payment_id or not payer_id:
-        return jsonify({"error": "Missing paymentId or PayerID"}), 400
-
-    try:
-        payment = paypalrestsdk.Payment.find(payment_id)
-    except ResourceNotFound as e:
-        print(f"Payment with ID {payment_id} not found: {str(e)}")
-        return jsonify({"error": "Payment not found. Please ensure the payment ID is correct."}), 404
-
-    if payment.execute({"payer_id": payer_id}):
-        print("Payment executed successfully")
-        return "Payment executed successfully"
-    else:
-        print("Payment execution failed:", payment.error)
-        return jsonify({"error": payment.error}), 400
-
 
 if __name__ == '__main__':
     with app.app_context():
